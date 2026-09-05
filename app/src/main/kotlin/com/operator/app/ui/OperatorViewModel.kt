@@ -10,6 +10,7 @@ import com.operator.app.audio.AudioRoutes
 import com.operator.app.backend.AskState
 import com.operator.app.bluetooth.BluetoothStatus
 import com.operator.app.di.OperatorContainer
+import com.operator.app.transcription.ListenState
 import com.operator.core.audio.AudioLoopbackState
 import com.operator.core.audio.AudioRoute
 import com.operator.core.diagnostics.RouteEvent
@@ -37,7 +38,11 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
 
     private data class BluetoothSection(val status: BluetoothStatus, val granted: Boolean)
 
-    private data class AiSection(val ask: AskState, val glasses: com.operator.core.glasses.GlassesState)
+    private data class AiSection(
+        val ask: AskState,
+        val glasses: com.operator.core.glasses.GlassesState,
+        val listen: ListenState,
+    )
 
     private val audioSection = combine(
         container.loopback.state,
@@ -51,7 +56,11 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
         container.bluetoothPermission.granted,
     ) { status, granted -> BluetoothSection(status, granted) }
 
-    private val aiSection = combine(container.ask.state, container.glasses.state) { ask, glasses -> AiSection(ask, glasses) }
+    private val aiSection = combine(
+        container.ask.state,
+        container.glasses.state,
+        container.listen.state,
+    ) { ask, glasses, listen -> AiSection(ask, glasses, listen) }
 
     val uiState: StateFlow<OperatorUiState> = combine(
         container.stateManager.state,
@@ -70,6 +79,7 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
             bluetoothPermissionIsRuntime = container.bluetoothPermission.isRuntimePermission,
             routeEvents = audio.events,
             ask = ai.ask,
+            listen = ai.listen,
             glasses = ai.glasses,
             glassesActions = container.glasses.actions,
             lastEvent = event,
@@ -87,7 +97,11 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
                     OperatorEvent.MuteReleased -> "Mute released"
                     is OperatorEvent.ModeChanged -> "Mode ${event.from.label} → ${event.to.label}"
                 }
-                if (event == OperatorEvent.EmergencyMuteEngaged) container.loopback.cancel()
+                if (event == OperatorEvent.EmergencyMuteEngaged) {
+                    container.loopback.cancel()
+                    // Muted means not listening: close the microphone, do not merely stop replying.
+                    container.listen.stop()
+                }
             }
         }
     }
@@ -129,6 +143,12 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
         if (!container.ask.send()) lastEvent.value = "ASK ignored (empty prompt or already in flight)"
     }
     fun clearAsk() = container.ask.clear()
+
+    // --- Listening (Milestone 8) ---
+    /** Uses the same input the audio test selected, so Bluetooth routing is exercised the same way. */
+    fun startListening() = container.listen.start(container.loopback.state.value.selection)
+    fun stopListening() = container.listen.stop()
+    fun clearTranscripts() = container.listen.clearTranscripts()
 
     // --- Glasses (Milestone 3) ---
     fun runGlassesAction(action: GlassesAction, activity: Any?) {

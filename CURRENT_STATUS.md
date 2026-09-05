@@ -1,14 +1,24 @@
 # CURRENT STATUS — OPERATOR
 
-**Current milestone:** 7 — Memory-aware text AI (merged to `main`)
+**Current milestone:** 8 — Hearing: voice-activity detection and transcription
+(implemented; on `claude/milestone-8-transcription`). Milestone 9 (speech out) is with Codex.
 
 **`main` contains Milestones 0 through 7.** Milestones 1 to 3 still await verification on real
-hardware, and Milestones 6 and 7 have never made a live model call. Both gaps are listed below.
+hardware, and no live model or transcription call has ever been made. Both gaps are listed below.
 
 **Last updated:** 2026-09-05
 
 ## What works (verified)
 
+- Milestone 8: the hearing path. `VoiceActivityDetector` gates on RMS against a noise floor it
+  calibrates to the room, with onset and hangover hysteresis; `SpeechSegmenter` turns frames into
+  whole utterances using bounded in-memory buffers and a pre-roll, discards anything too short to
+  be speech, and caps a monologue rather than buffering it; `WavEncoder` containerises in memory.
+  On the backend, `OpenAiCompatibleTranscriptionProvider` posts multipart to
+  `/audio/transcriptions` at a configurable base URL and `POST /transcribe` takes raw PCM-16.
+  On the phone, `ContinuousMicrophone` streams frames and `ListenController` drives
+  microphone → detection → utterance → backend → transcript, with a Listen panel that shows the
+  level, the status, and the transcripts it is holding in memory. 44 new tests.
 - Milestone 7: memory-aware answering. `MemoryRetrievalEngine` blends semantic, lexical, and
   entity-linked candidates and applies a relevance floor; `MemoryScopePolicy` decides which
   privacy scopes a mode may read; `MemoryWriteEngine` recognises "remember that…" and stores it
@@ -49,6 +59,14 @@ hardware, and Milestones 6 and 7 have never made a live model call. Both gaps ar
   HTTP engine. To try it for real, put `OPENROUTER_API_KEY` and `OPERATOR_FAST_MODEL_ID` in the
   backend `.env`, `OPERATOR_BACKEND_URL` in the app's `local.properties`, then use the Ask
   Operator panel. Risks 27 and 28.
+- Milestone 8 end to end: no live transcription call has ever been made. Every test uses a mock
+  HTTP engine or a fake provider. To try it for real, put `TRANSCRIPTION_API_KEY` and
+  `OPERATOR_TRANSCRIPTION_MODEL_ID` in the backend `.env` (optionally
+  `OPERATOR_TRANSCRIPTION_BASE_URL` to point at another vendor or a self-hosted Whisper), then
+  use the Listen panel. Risks 34 and 35.
+- Voice-activity thresholds have never been measured on a real microphone; they were chosen to be
+  testable. Risk 33. Speech recognition over a narrowband Bluetooth SCO link is also unmeasured
+  (risk 36).
 - Semantic retrieval has never run against a real embedding model. Set
   `OPERATOR_EMBEDDING_MODEL_ID` alongside the OpenRouter key to enable it; without it retrieval is
   lexical and structured only, which is a supported mode rather than a failure. Risks 30 to 32.
@@ -79,7 +97,10 @@ registration, and mock testing.
 
 ## What does not work / not started
 
-- No TTS or transcription yet (Milestones 8/9); those provider slots report "not configured".
+- No TTS yet (Milestone 9, with Codex); that provider slot reports "not configured".
+- Transcription does not feed the model: `POST /transcribe` returns a transcript and stops there.
+  Turning speech into an answer needs the decision engine and rolling context (Milestones 11-12).
+- Listening is manual: the user presses START LISTENING. Always-on ambient listening is later.
 - Ambient retrieval is not wired: retrieval runs for typed questions only, since there is no
   rolling transcript yet (Milestone 11).
 - No authentication (single default user, ADR-021).
@@ -100,6 +121,15 @@ understandable → actual devices correct.
 Milestone 2 (Bluetooth): GRANT BLUETOOTH → paired list shows headset/glasses → OUTPUT=A2DP
 PLAY TEST → INPUT=SCO RECORD TEST with route-log "Communication device active" → OUTPUT=SCO
 PLAY TEST → disconnect falls back to DEFAULT → note SCO bring-up time.
+
+Milestone 8 (hearing): configure `TRANSCRIPTION_API_KEY` + `OPERATOR_TRANSCRIPTION_MODEL_ID` on
+the backend → GRANT MICROPHONE → START LISTENING → the status should read "Learning the room",
+then "Listening" → stay silent for 30 s and confirm the utterance count stays at 0 and nothing
+reaches the backend → speak one sentence → status goes to "Capturing speech" then "Transcribing"
+and the transcript appears → note the round trip → STOP LISTENING mid-sentence and confirm no
+transcript arrives afterwards → repeat with INPUT set to the glasses/headset (SCO) and compare
+accuracy against the phone's own microphone (risk 36) → repeat in a noisy room and confirm the
+gate does not latch open (risk 33).
 
 Milestone 3 (Meta SDK): follow the device test plan in `docs/META_GLASSES.md` (register,
 device list, session start/stop, camera permission, mock kit) and record the glasses' reported

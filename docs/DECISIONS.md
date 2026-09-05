@@ -305,3 +305,48 @@ The assembled context marks retrieved memories as things the user said or stored
 explicitly not as live data, because the brief forbids presenting one as the other. When nothing
 relevant was found the block says so and tells the model not to invent anything, rather than
 leaving an empty section the model might fill in. Empty sections are omitted entirely.
+
+## ADR-029: Voice activity detection runs on the phone, transcription runs on the backend
+
+**Status:** Accepted (Milestone 8)
+
+The split follows the privacy rule rather than convenience. Detection is cheap, needs no
+credential, and its whole purpose is to decide what must *not* be uploaded, so it belongs on the
+device where the microphone is; the brief's "do not permanently store raw ambient audio, use
+rolling in-memory buffers" is enforceable only there. Transcription needs a provider key, and the
+brief forbids putting long-term keys in the Android app, so it belongs on the backend. The
+consequence is deliberate: the backend never sees audio the detector rejected, and the phone never
+holds a speech credential.
+
+The detector calibrates to the room before it may open the gate. Without that, starting up inside
+a noisy room latches the gate open on the noise itself and the floor can never adapt, because it
+only adapts while the gate is shut — Operator would stream a café to the backend continuously.
+
+## ADR-030: The transcription endpoint's base URL is configuration, not a constant
+
+**Status:** Accepted (Milestone 8)
+
+`OpenAiCompatibleTranscriptionProvider` speaks the `/audio/transcriptions` shape, which is
+implemented by several vendors and by self-hosted Whisper servers. Hard-coding one host would make
+the speech vendor a code change and would contradict the project rule that model and provider
+identity is configuration. The class is named for the wire format it speaks, not for a company.
+
+## ADR-031: Hearing and speaking are separate subsystems
+
+**Status:** Accepted (Milestone 8)
+
+`Subsystem.VOICE` previously covered both. They fail independently, are configured independently,
+and land in different milestones, so a single status line could not tell the truth about either.
+`HEARING` (Milestone 8) now reports the transcription path and `VOICE` (Milestone 9) the speech
+path.
+
+## ADR-032: /transcribe takes raw PCM, and does not chain into the model
+
+**Status:** Accepted (Milestone 8)
+
+Raw little-endian PCM-16 rather than JSON, because base64 would add a third to every upload on the
+latency path and the phone already holds the samples in that layout. The route returns a
+transcript and stops there: turning speech into an answer needs the decision engine and rolling
+context from later milestones, and wiring it early would make two subsystems untestable at once.
+An empty transcript is returned as an empty result rather than an error — the gate can open on a
+door slam, and silence is a first-class outcome.

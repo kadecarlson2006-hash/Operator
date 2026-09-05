@@ -31,7 +31,10 @@ OPERATOR_DEEP_MODEL_ID=
 OPERATOR_DECISION_MODEL_ID=
 OPERATOR_VISION_MODEL_ID=
 
-# Milestone 8/9 voice
+# Milestone 8 hearing: the phone needs no transcription credential or model ID. It detects
+# speech locally and posts the utterance to OPERATOR_BACKEND_URL, which holds the key.
+
+# Milestone 9 voice
 OPERATOR_TTS_PROVIDER=
 OPERATOR_ELEVENLABS_VOICE_ID=
 OPERATOR_ELEVENLABS_MODEL_ID=
