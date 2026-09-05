@@ -2,6 +2,7 @@ package com.operator.backend.providers
 
 import com.operator.backend.ai.OpenRouterProvider
 import com.operator.backend.config.BackendConfig
+import com.operator.backend.transcription.OpenAiCompatibleTranscriptionProvider
 import com.operator.core.ai.AIProvider
 import com.operator.core.ai.AIRequest
 import com.operator.core.ai.AIResponse
@@ -16,7 +17,8 @@ import kotlinx.serialization.Serializable
 /**
  * The backend's provider slots, wired from configuration. Milestone 4 only decides *which*
  * provider each slot would use and whether it is configured; no network calls exist yet.
- * Milestone 6 replaces the AI slot with OpenRouterProvider, Milestone 8/9 the others.
+ * Milestone 6 replaces the AI slot with OpenRouterProvider, Milestone 8 the transcription slot,
+ * Milestone 9 the TTS slot.
  */
 class ProviderRegistry(config: BackendConfig) {
     /** Real OpenRouter client once a key is configured, otherwise a provider that fails loudly. */
@@ -26,7 +28,19 @@ class ProviderRegistry(config: BackendConfig) {
         NotConfiguredAIProvider
     }
     val tts: TTSProvider = NotConfiguredTTSProvider
-    val transcription: TranscriptionProvider = NotConfiguredTranscriptionProvider
+
+    /** Real speech-to-text once a key and a model are configured, otherwise a provider that fails loudly. */
+    val transcription: TranscriptionProvider = if (config.transcriptionConfigured) {
+        OpenAiCompatibleTranscriptionProvider(
+            apiKey = config.transcriptionApiKey!!,
+            modelId = config.operator.transcriptionModelId!!,
+            baseUrl = config.operator.transcriptionBaseUrl ?: OpenAiCompatibleTranscriptionProvider.DEFAULT_BASE_URL,
+            languageCode = config.operator.transcriptionLanguage,
+            name = config.operator.transcriptionProvider ?: "openai-compatible",
+        )
+    } else {
+        NotConfiguredTranscriptionProvider
+    }
 
     val status = ProviderStatus(
         ai = SlotStatus(
@@ -44,7 +58,15 @@ class ProviderRegistry(config: BackendConfig) {
             configured = config.operator.ttsProvider == "elevenlabs" && config.elevenLabsConfigured && !config.operator.elevenLabsVoiceId.isNullOrBlank(),
             detail = config.operator.elevenLabsVoiceId?.let { "voice=$it" } ?: "no voice ID configured",
         ),
-        transcription = SlotStatus(provider = "none", configured = false, detail = "arrives in Milestone 8"),
+        transcription = SlotStatus(
+            provider = if (config.transcriptionConfigured) (config.operator.transcriptionProvider ?: "openai-compatible") else "none",
+            configured = config.transcriptionConfigured,
+            detail = listOfNotNull(
+                config.operator.transcriptionModelId?.let { "model=$it" },
+                config.operator.transcriptionBaseUrl?.let { "base=$it" },
+                config.operator.transcriptionLanguage?.let { "language=$it" },
+            ).joinToString(" ").ifEmpty { "no transcription model configured" },
+        ),
     )
 }
 
@@ -54,7 +76,10 @@ data class SlotStatus(val provider: String, val configured: Boolean, val detail:
 @Serializable
 data class ProviderStatus(val ai: SlotStatus, val tts: SlotStatus, val transcription: SlotStatus)
 
-fun ProviderRegistry.close() { (ai as? OpenRouterProvider)?.close() }
+fun ProviderRegistry.close() {
+    (ai as? OpenRouterProvider)?.close()
+    (transcription as? OpenAiCompatibleTranscriptionProvider)?.close()
+}
 
 class ProviderNotConfiguredException(slot: String) : IllegalStateException("$slot provider is not configured")
 

@@ -25,9 +25,11 @@ import com.operator.backend.memory.memoryRoutes
 import io.ktor.serialization.JsonConvertException
 import io.ktor.server.plugins.BadRequestException
 import com.operator.backend.providers.ProviderRegistry
+import com.operator.backend.transcription.transcriptionRoutes
 import com.operator.backend.providers.close
 import com.operator.backend.usage.UsageTracker
 import com.operator.core.ai.AIProvider
+import com.operator.core.transcription.TranscriptionProvider
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
@@ -45,7 +47,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import org.slf4j.LoggerFactory
 
-const val BACKEND_VERSION = "0.7.0-m7"
+const val BACKEND_VERSION = "0.8.0-m8"
 
 /** Everything the server needs, built once at startup and replaceable with fakes in tests. */
 class BackendDependencies(
@@ -58,6 +60,7 @@ class BackendDependencies(
     /** Defaults to the configured provider; tests inject a fake. */
     val ai: AIProvider = providers.ai,
     val embeddings: EmbeddingProvider = NoEmbeddingProvider,
+    val transcription: TranscriptionProvider = providers.transcription,
 ) {
     val modelRouter = ModelRouter(config.operator)
 
@@ -135,5 +138,6 @@ fun Application.operatorModule(deps: BackendDependencies) {
         healthRoutes(deps.health)
         memoryRoutes(deps.memory, deps.config.demoSeedEnabled)
         aiRoutes(deps.ai, deps.modelRouter, deps.prompts, deps.usage, deps.config.promptVersion, deps.retrieval, deps.writeEngine)
+        transcriptionRoutes(deps.transcription, deps.usage)
     }
 }

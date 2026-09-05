@@ -28,7 +28,15 @@ data class OperatorConfig(
     /** Embedding model for semantic memory retrieval (Milestone 7). */
     val embeddingModelId: String? = null,
 
-    // Voice (Milestone 8/9).
+    // Hearing (Milestone 8). The base URL is configurable because the OpenAI-compatible
+    // transcription shape is implemented by several vendors and by self-hosted Whisper servers.
+    val transcriptionProvider: String? = null,
+    val transcriptionModelId: String? = null,
+    val transcriptionBaseUrl: String? = null,
+    /** Optional language hint; null lets the model detect it. */
+    val transcriptionLanguage: String? = null,
+
+    // Voice (Milestone 9).
     val ttsProvider: String? = null,
     val elevenLabsVoiceId: String? = null,
     val elevenLabsModelId: String? = null,
@@ -68,6 +76,10 @@ data class OperatorConfig(
                 decisionModelId = str(Keys.DECISION_MODEL_ID),
                 visionModelId = str(Keys.VISION_MODEL_ID),
                 embeddingModelId = str(Keys.EMBEDDING_MODEL_ID),
+                transcriptionProvider = str(Keys.TRANSCRIPTION_PROVIDER),
+                transcriptionModelId = str(Keys.TRANSCRIPTION_MODEL_ID),
+                transcriptionBaseUrl = str(Keys.TRANSCRIPTION_BASE_URL),
+                transcriptionLanguage = str(Keys.TRANSCRIPTION_LANGUAGE),
                 ttsProvider = str(Keys.TTS_PROVIDER),
                 elevenLabsVoiceId = str(Keys.ELEVENLABS_VOICE_ID),
                 elevenLabsModelId = str(Keys.ELEVENLABS_MODEL_ID),
@@ -89,6 +101,10 @@ data class OperatorConfig(
         const val DECISION_MODEL_ID = "OPERATOR_DECISION_MODEL_ID"
         const val VISION_MODEL_ID = "OPERATOR_VISION_MODEL_ID"
         const val EMBEDDING_MODEL_ID = "OPERATOR_EMBEDDING_MODEL_ID"
+        const val TRANSCRIPTION_PROVIDER = "OPERATOR_TRANSCRIPTION_PROVIDER"
+        const val TRANSCRIPTION_MODEL_ID = "OPERATOR_TRANSCRIPTION_MODEL_ID"
+        const val TRANSCRIPTION_BASE_URL = "OPERATOR_TRANSCRIPTION_BASE_URL"
+        const val TRANSCRIPTION_LANGUAGE = "OPERATOR_TRANSCRIPTION_LANGUAGE"
         const val TTS_PROVIDER = "OPERATOR_TTS_PROVIDER"
         const val ELEVENLABS_VOICE_ID = "OPERATOR_ELEVENLABS_VOICE_ID"
         const val ELEVENLABS_MODEL_ID = "OPERATOR_ELEVENLABS_MODEL_ID"
