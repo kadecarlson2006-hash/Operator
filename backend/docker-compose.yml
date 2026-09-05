@@ -1,0 +1,23 @@
+# Local PostgreSQL + pgvector for the Operator backend (Milestone 4).
+#   docker compose -f backend/docker-compose.yml up -d
+# Then in .env:  DATABASE_URL=postgresql://operator:operator@localhost:5432/operator
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.6-pg17
+    container_name: operator-postgres
+    environment:
+      POSTGRES_USER: operator
+      POSTGRES_PASSWORD: operator
+      POSTGRES_DB: operator
+    ports:
+      - "5432:5432"
+    volumes:
+      - operator-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U operator -d operator"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  operator-pgdata:
