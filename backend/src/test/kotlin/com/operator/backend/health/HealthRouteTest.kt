@@ -4,6 +4,7 @@ import com.operator.backend.BackendDependencies
 import com.operator.backend.config.BackendConfig
 import com.operator.backend.db.DatabaseGateway
 import com.operator.backend.db.DatabaseHealth
+import com.operator.backend.memory.InMemoryMemoryStore
 import com.operator.backend.operatorModule
 import com.operator.backend.providers.ProviderRegistry
 import io.ktor.client.request.get
@@ -26,7 +27,7 @@ class HealthRouteTest {
     }
 
     private fun deps(db: DatabaseHealth, config: BackendConfig = BackendConfig()) =
-        BackendDependencies(config, FakeDatabase(db), ProviderRegistry(config))
+        BackendDependencies(config, FakeDatabase(db), ProviderRegistry(config), InMemoryMemoryStore())
 
     @Test
     fun `healthy database reports ok with 200`() = testApplication {

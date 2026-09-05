@@ -16,6 +16,8 @@ data class BackendConfig(
     val openRouterApiKey: String? = null,
     val elevenLabsApiKey: String? = null,
     val promptVersion: String = "operator-system-v1",
+    /** Allows POST /memory/demo-seed. Off by default; on for local development and CI. */
+    val demoSeedEnabled: Boolean = false,
     /** Shared, non-secret Operator settings (model IDs, voice IDs, thresholds). */
     val operator: OperatorConfig = OperatorConfig(),
 ) {
@@ -55,6 +57,7 @@ data class BackendConfig(
                 openRouterApiKey = str(Keys.OPENROUTER_API_KEY),
                 elevenLabsApiKey = str(Keys.ELEVENLABS_API_KEY),
                 promptVersion = str(Keys.PROMPT_VERSION) ?: defaults.promptVersion,
+                demoSeedEnabled = str(Keys.DEMO_SEED_ENABLED)?.toBoolean() ?: defaults.demoSeedEnabled,
                 operator = OperatorConfig.fromMap(values),
             )
         }
@@ -88,6 +91,7 @@ data class BackendConfig(
         const val OPENROUTER_API_KEY = "OPENROUTER_API_KEY"
         const val ELEVENLABS_API_KEY = "ELEVENLABS_API_KEY"
         const val PROMPT_VERSION = "OPERATOR_PROMPT_VERSION"
+        const val DEMO_SEED_ENABLED = "OPERATOR_DEMO_SEED_ENABLED"
     }
 }
 

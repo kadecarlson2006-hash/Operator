@@ -1,11 +1,18 @@
 # CURRENT STATUS — OPERATOR
 
-**Current milestone:** 4 — Backend skeleton (implemented and CI-verified; Milestones 1–3 still await device verification)
+**Current milestone:** 5 — Memory database v1 (implemented and CI-verified; Milestones 1–3 still await device verification)
 
 **Last updated:** 2026-09-05
 
 ## What works (verified)
 
+- Memory database v1: normalized schema (users, organizations, people, projects, memories,
+  memory_embeddings on pgvector, memory_events, conversation_sessions), `MemoryStore` with
+  create / get / search / update / delete / disable / mark-incorrect / touch / events /
+  embeddings / cosine similarity, REST API, idempotent demo memories. 22 backend unit tests
+  pass; the CI integration job runs `backend/scripts/memory_api_smoke.py` against real
+  PostgreSQL + pgvector (create, duplicate 409, search filters, patch, embeddings + similarity,
+  disable/enable, mark-incorrect, events, delete → 404, demo seed idempotence).
 - `:backend` (Ktor 3.5, HikariCP, Flyway, pgvector): `/health` with truthful database and
   provider status, redacted config, `.env` loading; 10 unit tests pass locally and in CI, and the
   CI integration job boots it against `pgvector/pgvector:0.8.6-pg17` and gets `status: ok` with
@@ -41,8 +48,9 @@ registration, and mock testing.
 
 ## What does not work / not started
 
-- Backend has no memory schema (Milestone 5) and no model/TTS/transcription calls (6/8/9); the
-  provider slots report "not configured". No authentication yet (designed later per the brief).
+- Backend has no model/TTS/transcription calls yet (Milestones 6/8/9); provider slots report
+  "not configured". No embedding generation or semantic retrieval yet (7). No authentication
+  (single default user, ADR-021).
 - Camera streaming/photo (Milestone 16), AI, TTS, transcription, rolling context, decision
   engine, BLE ring, integrations.
 - No launcher icon.
@@ -52,7 +60,7 @@ registration, and mock testing.
 - Human verification on hardware. Milestone 3 additionally needs: the Meta AI app with
   Developer Mode enabled, the glasses paired to it, and a GitHub token for the build.
 
-## Next test (device checks still owed for Milestones 1–3; Milestone 5 can proceed in parallel)
+## Next test (device checks still owed for Milestones 1–3; Milestone 6 can proceed in parallel)
 
 Milestone 1 (phone audio): launch → GRANT MICROPHONE → RECORD TEST → PLAY TEST → speech
 understandable → actual devices correct.

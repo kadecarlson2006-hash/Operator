@@ -188,3 +188,38 @@ A configured-but-unreachable database does not stop the process: startup logs th
 config). A reachable database answers **200** with the pgvector version and migrations applied.
 Secrets are masked to their last four characters and never returned; the JDBC URL is shown
 without credentials. Load balancers get a real signal, humans get a diagnosis.
+
+## ADR-019: One generalized `memories` table with a typed enum and real foreign keys
+
+**Status:** Accepted (Milestone 5)
+
+The brief lists many candidate tables (personal_facts, work_facts, preferences, goals,
+decisions, commitments, …). Retrieval (Milestone 7) needs *one* semantic search across all of
+them, and a table per type would mean a union view plus an embedding table per type. So every
+memory lives in `memories` with a `memory_type` check constraint (the 12 types from the
+brief), the generalized fields the brief specifies (source, importance, confidence, expiry,
+privacy scope, last used, active flag), real foreign keys to normalized `people`,
+`organizations`, and `projects`, and a small `metadata jsonb` for type-specific extras. That is
+normalization where relationships exist and a single search surface where retrieval needs it.
+`memory_embeddings` is a separate one-to-one table so a memory can exist before its embedding
+and be re-embedded when the model changes; the `vector` column is dimension-agnostic until the
+embedding model is chosen (an HNSW index is a later migration). `memory_events` is append-only
+and not FK-bound so provenance survives hard deletes.
+
+## ADR-020: Plain JDBC, no ORM
+
+**Status:** Accepted (Milestone 5)
+
+The store is a handful of parameterized statements; pgvector needs `?::vector` casts and
+`<=>` ordering that ORMs get in the way of. `PostgresMemoryStore` wraps each call in one
+transaction, and `InMemoryMemoryStore` implements identical semantics so unit tests stay fast
+and the app can run without a database. Revisit if the query surface grows past what reads
+comfortably as SQL.
+
+## ADR-021: Single default user until authentication exists
+
+**Status:** Accepted (Milestone 5) — temporary
+
+Every table is already keyed by `user_id`; the API pins it to a seeded default user. Adding
+authentication later means resolving the user from the request instead of a constant, not a
+schema change.

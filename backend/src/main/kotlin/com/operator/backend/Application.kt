@@ -6,6 +6,16 @@ import com.operator.backend.db.NoDatabase
 import com.operator.backend.db.PostgresGateway
 import com.operator.backend.health.HealthReporter
 import com.operator.backend.health.healthRoutes
+import com.operator.backend.memory.DuplicateMemoryException
+import com.operator.backend.memory.EntityNotFoundException
+import com.operator.backend.memory.InMemoryMemoryStore
+import com.operator.backend.memory.MemoryNotFoundException
+import com.operator.backend.memory.MemoryStore
+import com.operator.backend.memory.MemoryValidationException
+import com.operator.backend.memory.PostgresMemoryStore
+import com.operator.backend.memory.memoryRoutes
+import io.ktor.serialization.JsonConvertException
+import io.ktor.server.plugins.BadRequestException
 import com.operator.backend.providers.ProviderRegistry
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
@@ -20,13 +30,14 @@ import io.ktor.server.routing.routing
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 
-const val BACKEND_VERSION = "0.4.0-m4"
+const val BACKEND_VERSION = "0.5.0-m5"
 
 /** Everything the server needs, built once at startup and replaceable with fakes in tests. */
 class BackendDependencies(
     val config: BackendConfig,
     val database: DatabaseGateway,
     val providers: ProviderRegistry,
+    val memory: MemoryStore,
 ) {
     val health = HealthReporter(
         version = BACKEND_VERSION,
@@ -34,6 +45,7 @@ class BackendDependencies(
         database = database,
         providers = providers.status,
         redactedConfig = config.redacted(),
+        memoryBackend = memory.backendName,
     )
 
     fun close() = database.close()
@@ -51,7 +63,9 @@ class BackendDependencies(
                     UnreachableDatabase(e.message ?: e::class.simpleName ?: "unknown")
                 }
             } ?: NoDatabase
-            return BackendDependencies(config, database, ProviderRegistry(config))
+            val memory: MemoryStore = (database as? PostgresGateway)?.let { PostgresMemoryStore(it.dataSource) }
+                ?: InMemoryMemoryStore().also { log.warn("No reachable database: memory store is IN-MEMORY and will not survive a restart") }
+            return BackendDependencies(config, database, ProviderRegistry(config), memory)
         }
     }
 }
@@ -67,6 +81,12 @@ fun Application.operatorModule(deps: BackendDependencies) {
     }
     install(CallLogging)
     install(StatusPages) {
+        exception<MemoryValidationException> { call, cause -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to cause.message)) }
+        exception<BadRequestException> { call, cause -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to (cause.cause?.message ?: cause.message ?: "bad request"))) }
+        exception<JsonConvertException> { call, cause -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to (cause.message ?: "malformed JSON"))) }
+        exception<MemoryNotFoundException> { call, cause -> call.respond(HttpStatusCode.NotFound, mapOf("error" to cause.message)) }
+        exception<EntityNotFoundException> { call, cause -> call.respond(HttpStatusCode.NotFound, mapOf("error" to cause.message)) }
+        exception<DuplicateMemoryException> { call, cause -> call.respond(HttpStatusCode.Conflict, mapOf("error" to cause.message, "existingId" to cause.existingId)) }
         exception<Throwable> { call, cause ->
             LoggerFactory.getLogger("operator-backend").error("Unhandled error", cause)
             call.respond(HttpStatusCode.InternalServerError, mapOf("error" to (cause.message ?: "internal error")))
@@ -75,5 +95,6 @@ fun Application.operatorModule(deps: BackendDependencies) {
     routing {
         get("/") { call.respond(mapOf("service" to "operator-backend", "version" to BACKEND_VERSION, "health" to "/health")) }
         healthRoutes(deps.health)
+        memoryRoutes(deps.memory, deps.config.demoSeedEnabled)
     }
 }
