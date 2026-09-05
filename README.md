@@ -7,7 +7,7 @@ it whispers something useful, corrective, or funny.
 
 > Silence is the default. `NO_RESPONSE` is the most common outcome by design.
 
-**Status:** Milestones 0–8 implemented; see [CURRENT_STATUS.md](CURRENT_STATUS.md) and [docs/META_GLASSES.md](docs/META_GLASSES.md).
+**Status:** Milestones 0–9 implemented; see [CURRENT_STATUS.md](CURRENT_STATUS.md) and [docs/META_GLASSES.md](docs/META_GLASSES.md).
 
 ## Hardware target
 
@@ -242,6 +242,6 @@ Highlights:
 
 0. Project skeleton ✅  1. Phone audio loopback ✅  2. Bluetooth audio diagnostics ✅
 3. Meta device access ✅ (1–3 pending device check)  4. Backend skeleton ✅
-5. Memory database v1 ✅  6. Basic text AI ✅  7. Memory-aware text AI ✅  8. Push to talk  9. ElevenLabs voice  10. Glasses audio  11. Rolling transcription
+5. Memory database v1 ✅  6. Basic text AI ✅  7. Memory-aware text AI ✅  8. Push to talk ✅  9. ElevenLabs voice ✅  10. Glasses audio  11. Rolling transcription
 12. Response decision engine  13. Active Operator  14. Feedback learning
 15. BLE ring / remote  16. Camera context  17. Work integrations

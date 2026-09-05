@@ -28,8 +28,10 @@ import com.operator.backend.providers.ProviderRegistry
 import com.operator.backend.transcription.transcriptionRoutes
 import com.operator.backend.providers.close
 import com.operator.backend.usage.UsageTracker
+import com.operator.backend.tts.ttsRoutes
 import com.operator.core.ai.AIProvider
 import com.operator.core.transcription.TranscriptionProvider
+import com.operator.core.tts.TTSProvider
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
@@ -47,7 +49,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import org.slf4j.LoggerFactory
 
-const val BACKEND_VERSION = "0.8.0-m8"
+const val BACKEND_VERSION = "0.9.0-m9"
 
 /** Everything the server needs, built once at startup and replaceable with fakes in tests. */
 class BackendDependencies(
@@ -61,6 +63,7 @@ class BackendDependencies(
     val ai: AIProvider = providers.ai,
     val embeddings: EmbeddingProvider = NoEmbeddingProvider,
     val transcription: TranscriptionProvider = providers.transcription,
+    val tts: TTSProvider = providers.tts,
 ) {
     val modelRouter = ModelRouter(config.operator)
 
@@ -139,5 +142,11 @@ fun Application.operatorModule(deps: BackendDependencies) {
         memoryRoutes(deps.memory, deps.config.demoSeedEnabled)
         aiRoutes(deps.ai, deps.modelRouter, deps.prompts, deps.usage, deps.config.promptVersion, deps.retrieval, deps.writeEngine)
         transcriptionRoutes(deps.transcription, deps.usage)
+        ttsRoutes(
+            deps.tts,
+            deps.usage,
+            deps.config.operator.elevenLabsVoiceId,
+            deps.config.operator.elevenLabsModelId,
+        )
     }
 }

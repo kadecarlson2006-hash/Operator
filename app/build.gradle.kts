@@ -32,7 +32,7 @@ android {
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1
-        versionName = "0.6.0-m6"
+        versionName = "0.9.0-m9"
 
         // Meta Wearables DAT attestation. "0"/"0" = Developer Mode (Meta AI app must have Developer Mode on).
         manifestPlaceholders["mwdat_application_id"] = configValue("MWDAT_APPLICATION_ID", "0")

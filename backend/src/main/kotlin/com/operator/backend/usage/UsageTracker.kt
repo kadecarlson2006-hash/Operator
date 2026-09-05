@@ -17,6 +17,7 @@ data class UsageRecord(
     val tier: String? = null,
     val inputTokens: Int = 0,
     val outputTokens: Int = 0,
+    val characters: Int = 0,
     val latencyMillis: Long = 0,
     val costUsd: Double? = null,
     val sessionId: String? = null,
@@ -29,6 +30,7 @@ data class UsageTotals(
     val failures: Int = 0,
     val inputTokens: Long = 0,
     val outputTokens: Long = 0,
+    val characters: Long = 0,
     val costUsd: Double? = null,
     val averageLatencyMillis: Long = 0,
 )
@@ -68,6 +70,7 @@ class UsageTracker(
         tier: String? = null,
         inputTokens: Int = 0,
         outputTokens: Int = 0,
+        characters: Int = 0,
         latencyMillis: Long = 0,
         costUsd: Double? = null,
         sessionId: String? = null,
@@ -76,7 +79,7 @@ class UsageTracker(
         val record = UsageRecord(
             at = Instant.now(clock).toString(), kind = kind, provider = provider, model = model, tier = tier,
             inputTokens = inputTokens, outputTokens = outputTokens, latencyMillis = latencyMillis,
-            costUsd = costUsd, sessionId = sessionId, failed = failed,
+            characters = characters, costUsd = costUsd, sessionId = sessionId, failed = failed,
         )
         lock.withLock {
             records.addLast(record)
@@ -112,6 +115,7 @@ class UsageTracker(
             failures = failures + if (r.failed) 1 else 0,
             inputTokens = inputTokens + r.inputTokens,
             outputTokens = outputTokens + r.outputTokens,
+            characters = characters + r.characters,
             costUsd = if (!trackCost) null else (costUsd ?: 0.0) + (r.costUsd ?: 0.0),
             averageLatencyMillis = totalLatency / calls,
         )

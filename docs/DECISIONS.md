@@ -350,3 +350,15 @@ transcript and stops there: turning speech into an answer needs the decision eng
 context from later milestones, and wiring it early would make two subsystems untestable at once.
 An empty transcript is returned as an empty result rather than an error — the gate can open on a
 door slam, and silence is a first-class outcome.
+
+## ADR-033: ElevenLabs audio streams through the backend as raw 24 kHz PCM
+
+**Status:** Accepted (Milestone 9)
+
+The Android app never receives the ElevenLabs key. The backend calls the official HTTP streaming
+endpoint with configured voice and model IDs and relays signed 16-bit little-endian mono PCM.
+HTTP streaming fits Milestone 9 because the complete model answer exists before TTS starts; the
+bidirectional WebSocket endpoint becomes useful only if later work speaks partial LLM tokens. Raw
+`pcm_24000` lets `AudioTrack` play the first received chunk without waiting for an MP3 decoder or
+a complete file. Cancellation closes the phone request, backend stream, provider channel, and
+`AudioTrack`. No audio is written to disk.

@@ -12,8 +12,8 @@ Update this file whenever a test answers a question.
 | 5 | Android background service restrictions (foreground service type `microphone`, Doze) | UNKNOWN TO VERIFY | Milestone 11. Continuous capture needs a foreground service with `FOREGROUND_SERVICE_MICROPHONE`; Android 14+ restricts starting mic FGS from background. |
 | 6 | Ambient transcription cost | UNKNOWN TO VERIFY | Local VAD before cloud; UsageTracker in Milestone 8+. |
 | 7 | OpenRouter latency (first token) | UNKNOWN TO VERIFY | Measurement now exists on both sides: the backend reports model latency and the phone reports round trip. Needs a real key and one live call to produce numbers. |
-| 8 | ElevenLabs latency (first audio) and streaming support | UNKNOWN TO VERIFY | Milestone 9. Check current official docs for streaming/websocket endpoints before implementing. |
-| 9 | Voice interruption behaviour (barge-in while Operator speaks) | UNKNOWN TO VERIFY | Milestone 9/11. |
+| 8 | ElevenLabs latency (first audio) and streaming support | PARTIALLY VERIFIED | Official API docs confirm HTTP streaming at `/v1/text-to-speech/{voice_id}/stream` and `pcm_24000`; M9 measures request-to-first-played-chunk. Real network/device latency remains unknown. |
+| 9 | Voice interruption behaviour (barge-in while Operator speaks) | PARTIALLY VERIFIED | STOP SPEAKING and emergency mute cancel the coroutine, upstream response channel, and `AudioTrack`; a controller cancellation test was added. Real device interruption and later barge-in remain Milestone 11 checks. |
 | 10 | BLE ring compatibility (HID vs custom GATT) | UNKNOWN TO VERIFY | Milestone 15. Design around generic Android HID first. |
 | 11 | Android microphone capture/playback on the phone itself | PARTIALLY VERIFIED | Milestone 1 code compiles and unit-tests in CI but has not yet been run on a device — see CURRENT_STATUS.md "next test". |
 | 12 | Build toolchain compatibility (AGP 9.4 + Kotlin 2.4.10 + Gradle 9.6.0) | VERIFIED | `:core` builds/tests locally and in CI; `:app` assembles and unit-tests in CI (run #3 green). |

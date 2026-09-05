@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.operator.app.BuildConfig
 import com.operator.app.audio.AudioRoutes
 import com.operator.app.backend.AskState
+import com.operator.app.backend.SpeechState
 import com.operator.app.bluetooth.BluetoothStatus
 import com.operator.app.di.OperatorContainer
 import com.operator.app.transcription.ListenState
@@ -42,6 +43,7 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
         val ask: AskState,
         val glasses: com.operator.core.glasses.GlassesState,
         val listen: ListenState,
+        val speech: SpeechState,
     )
 
     private val audioSection = combine(
@@ -60,7 +62,8 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
         container.ask.state,
         container.glasses.state,
         container.listen.state,
-    ) { ask, glasses, listen -> AiSection(ask, glasses, listen) }
+        container.speech.state,
+    ) { ask, glasses, listen, speech -> AiSection(ask, glasses, listen, speech) }
 
     val uiState: StateFlow<OperatorUiState> = combine(
         container.stateManager.state,
@@ -80,6 +83,7 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
             routeEvents = audio.events,
             ask = ai.ask,
             listen = ai.listen,
+            speech = ai.speech,
             glasses = ai.glasses,
             glassesActions = container.glasses.actions,
             lastEvent = event,
@@ -101,6 +105,7 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
                     container.loopback.cancel()
                     // Muted means not listening: close the microphone, do not merely stop replying.
                     container.listen.stop()
+                    container.speech.cancel()
                 }
             }
         }
@@ -143,6 +148,15 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
         if (!container.ask.send()) lastEvent.value = "ASK ignored (empty prompt or already in flight)"
     }
     fun clearAsk() = container.ask.clear()
+    fun speakAnswer() {
+        if (container.stateManager.current.let { it.muted || !it.isProcessing }) {
+            lastEvent.value = "SPEAK ignored (muted or OFF)"
+            return
+        }
+        val answer = container.ask.state.value.answer.orEmpty()
+        if (!container.speech.speak(answer)) lastEvent.value = "SPEAK ignored (no answer, muted, busy, or backend unavailable)"
+    }
+    fun stopSpeaking() = container.speech.cancel()
 
     // --- Listening (Milestone 8) ---
     /** Uses the same input the audio test selected, so Bluetooth routing is exercised the same way. */

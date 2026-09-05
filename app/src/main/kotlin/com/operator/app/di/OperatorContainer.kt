@@ -5,9 +5,10 @@ import com.operator.app.audio.AndroidAudioPlayer
 import com.operator.app.audio.AndroidAudioRecorder
 import com.operator.app.audio.AudioRouteMonitor
 import com.operator.app.audio.AudioSubsystemReporter
+import com.operator.app.audio.AndroidStreamingSpeechPlayer
 import com.operator.app.backend.AskOperatorController
-import com.operator.app.backend.OperatorBackend
 import com.operator.app.backend.OperatorBackendClient
+import com.operator.app.backend.SpeechController
 import com.operator.app.audio.CommunicationLink
 import com.operator.app.audio.ContinuousMicrophone
 import com.operator.app.transcription.ListenController
@@ -78,11 +79,18 @@ class OperatorContainer(app: Application) {
     val decisionEngine: ResponseDecisionEngine = SilentDecisionEngine
 
     /** Milestone 6: the phone's only route to the models; credentials stay on the backend. */
-    val backendClient: OperatorBackend = OperatorBackendClient(config.backendUrl)
+    val backendClient = OperatorBackendClient(config.backendUrl)
     val ask = AskOperatorController(
         backendClient,
         appScope,
         stateSupplier = { stateManager.current.let { it.mode to it.wit } },
+    )
+    val speechPlayer = AndroidStreamingSpeechPlayer(app, audioRouteMonitor, communicationLink)
+    val speech = SpeechController(
+        backendClient,
+        speechPlayer,
+        appScope,
+        selectionSupplier = { loopback.state.value.selection },
     )
 
     /** Milestone 8: open microphone, gated by voice-activity detection before anything is sent. */
@@ -128,6 +136,11 @@ class OperatorContainer(app: Application) {
                 )
             }
             .launchIn(appScope)
+        stateManager.updateSubsystem(
+            Subsystem.VOICE,
+            if (backendClient.speechConfigured) SubsystemStatus(SubsystemState.READY, "ElevenLabs via backend")
+            else SubsystemStatus(SubsystemState.NOT_CONFIGURED, "Set OPERATOR_BACKEND_URL"),
+        )
         // Initialise the vendor SDK at process start, like Meta's samples do in Application.onCreate.
         glasses.initialize()
         // A selected device that disconnects must not silently keep being "selected".

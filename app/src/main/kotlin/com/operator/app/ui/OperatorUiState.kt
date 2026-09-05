@@ -2,6 +2,7 @@ package com.operator.app.ui
 
 import com.operator.app.audio.AudioRoutes
 import com.operator.app.backend.AskState
+import com.operator.app.backend.SpeechState
 import com.operator.app.bluetooth.BluetoothStatus
 import com.operator.app.transcription.ListenState
 import com.operator.core.audio.AudioLoopbackState
@@ -24,6 +25,7 @@ data class OperatorUiState(
     val bluetoothPermissionIsRuntime: Boolean = false,
     val routeEvents: List<RouteEvent> = emptyList(),
     val ask: AskState = AskState(),
+    val speech: SpeechState = SpeechState(),
     /** Milestone 8: the hearing path — level, status, and the transcripts held in memory. */
     val listen: ListenState = ListenState(),
     val glasses: GlassesState = GlassesState(providerName = "none", sdkPresent = false),

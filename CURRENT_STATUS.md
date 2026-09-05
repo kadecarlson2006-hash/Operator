@@ -1,10 +1,10 @@
 # CURRENT STATUS — OPERATOR
 
-**Current milestone:** 8 — Hearing: voice-activity detection and transcription (merged to
-`main`). Milestone 9 (speech out) is with Codex.
+**Current milestone:** 9 — ElevenLabs voice (implemented on `codex/m10-glasses-audio`)
 
-**`main` contains Milestones 0 through 8.** Milestones 1 to 3 still await verification on real
-hardware, and no live model or transcription call has ever been made. Both gaps are listed below.
+**`main` contains Milestones 0 through 8; this branch adds Milestone 9.** Milestones 1 to 3 still
+await verification on real hardware, and no live model, transcription, or TTS call has ever been
+made.
 
 **Last updated:** 2026-09-05
 
@@ -56,6 +56,14 @@ hardware, and no live model or transcription call has ever been made. Both gaps 
 
 ## What is implemented but NOT yet exercised for real
 
+- ElevenLabs TTS: backend-only credentials, configurable voice/model IDs, streaming
+  `pcm_24000` synthesis through `POST /tts/synthesize`, incremental Android `AudioTrack`
+  playback using the selected output route, STOP SPEAKING, emergency-mute cancellation,
+  first-audio timing, TTS character accounting, and mock-backed provider, route, and controller
+  tests are implemented. Configure `ELEVENLABS_API_KEY`, `OPERATOR_TTS_PROVIDER=elevenlabs`,
+  `OPERATOR_ELEVENLABS_VOICE_ID`, and `OPERATOR_ELEVENLABS_MODEL_ID` on the backend, then use
+  SPEAK ANSWER in the app. Audio streams as raw signed 16-bit little-endian mono PCM at 24 kHz;
+  the API key never enters the APK.
 - Milestone 6 end to end: no live model call has ever been made. Every provider test uses a mock
   HTTP engine. To try it for real, put `OPENROUTER_API_KEY` and `OPERATOR_FAST_MODEL_ID` in the
   backend `.env`, `OPERATOR_BACKEND_URL` in the app's `local.properties`, then use the Ask
@@ -98,14 +106,13 @@ registration, and mock testing.
 
 ## What does not work / not started
 
-- No TTS yet (Milestone 9, with Codex); that provider slot reports "not configured".
 - Transcription does not feed the model: `POST /transcribe` returns a transcript and stops there.
   Turning speech into an answer needs the decision engine and rolling context (Milestones 11-12).
 - Listening is manual: the user presses START LISTENING. Always-on ambient listening is later.
 - Ambient retrieval is not wired: retrieval runs for typed questions only, since there is no
   rolling transcript yet (Milestone 11).
 - No authentication (single default user, ADR-021).
-- Camera streaming/photo (Milestone 16), AI, TTS, transcription, rolling context, decision
+- Camera streaming/photo (Milestone 16), rolling context, decision
   engine, BLE ring, integrations.
 - No launcher icon.
 
@@ -113,8 +120,15 @@ registration, and mock testing.
 
 - Human verification on hardware. Milestone 3 additionally needs: the Meta AI app with
   Developer Mode enabled, the glasses paired to it, and a GitHub token for the build.
+- In this authoring sandbox, Gradle 9.6 cannot close/read its distribution JARs and fails before
+  project configuration with `AccessDeniedException`. Fresh Gradle homes and JDK 17/21 produced
+  the same result, so the combined M8/M9 tests need a normal local or CI run.
 
-## Next test (device checks still owed for Milestones 1–3; Milestone 6 can proceed in parallel)
+## Next tests
+
+Milestone 9 (voice): run the mock test suites in CI, configure a test ElevenLabs voice/model,
+ask a typed question, tap SPEAK ANSWER, verify audio begins incrementally on the selected route,
+then verify STOP SPEAKING and emergency mute stop it immediately. Record first-audio latency.
 
 Milestone 1 (phone audio): launch → GRANT MICROPHONE → RECORD TEST → PLAY TEST → speech
 understandable → actual devices correct.

@@ -67,6 +67,8 @@ data class OperatorActions(
     val onAskPromptChange: (String) -> Unit = {},
     val onAskSend: () -> Unit = {},
     val onAskClear: () -> Unit = {},
+    val onSpeakAnswer: () -> Unit = {},
+    val onStopSpeaking: () -> Unit = {},
     val onStartListening: () -> Unit = {},
     val onStopListening: () -> Unit = {},
     val onClearTranscripts: () -> Unit = {},
@@ -256,11 +258,11 @@ private fun AskOperatorPanel(state: OperatorUiState, actions: OperatorActions) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
                 onClick = actions.onAskSend,
-                enabled = ask.canSend && !state.operator.muted,
+                enabled = ask.canSend && !state.operator.muted && !state.speech.busy,
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(containerColor = OperatorColors.Amber, contentColor = OperatorColors.Background),
             ) { Text(if (ask.inFlight) "SENDING…" else "SEND", style = MaterialTheme.typography.labelSmall) }
-            OutlinedButton(onClick = actions.onAskClear, enabled = !ask.inFlight && (ask.answer != null || ask.error != null || ask.prompt.isNotEmpty()), modifier = Modifier.weight(1f)) {
+            OutlinedButton(onClick = actions.onAskClear, enabled = !ask.inFlight && !state.speech.busy && (ask.answer != null || ask.error != null || ask.prompt.isNotEmpty()), modifier = Modifier.weight(1f)) {
                 Text("CLEAR", style = MaterialTheme.typography.labelSmall)
             }
         }
@@ -272,6 +274,22 @@ private fun AskOperatorPanel(state: OperatorUiState, actions: OperatorActions) {
             Spacer(Modifier.height(12.dp))
             Text("OPERATOR", style = MaterialTheme.typography.labelSmall, color = OperatorColors.AmberDim)
             Text(answer, style = MaterialTheme.typography.bodyMedium, color = OperatorColors.Cream, modifier = Modifier.padding(top = 4.dp))
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = if (state.speech.busy) actions.onStopSpeaking else actions.onSpeakAnswer,
+                enabled = state.speech.busy || (!state.operator.muted && answer.isNotBlank()),
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (state.speech.busy) OperatorColors.Alert else OperatorColors.Amber,
+                    contentColor = OperatorColors.Background,
+                ),
+            ) {
+                Text(if (state.speech.busy) "STOP SPEAKING" else "SPEAK ANSWER", style = MaterialTheme.typography.labelSmall)
+            }
+            state.speech.firstAudioMillis?.let { KeyValueRow("Voice first audio", "$it ms", latencyColor(it)) }
+            state.speech.totalMillis?.let { KeyValueRow("Voice total", "$it ms") }
+            state.speech.route?.let { KeyValueRow("Voice route", it) }
+            state.speech.error?.let { KeyValueRow("Voice error", it, OperatorColors.Alert) }
 
             ask.memoryWritten?.let { written ->
                 Spacer(Modifier.height(10.dp))
@@ -634,7 +652,7 @@ private fun DiagnosticsPanel(state: OperatorUiState) {
         KeyValueRow("Backend URL", c.backendUrl ?: "— (set OPERATOR_BACKEND_URL)")
         KeyValueRow("AI model (last answer)", state.ask.model ?: "— (ask something)")
         KeyValueRow("Decision model", c.decisionModelId ?: "— (Milestone 12)")
-        KeyValueRow("TTS provider", c.ttsProvider ?: "— (Milestone 8)")
+        KeyValueRow("TTS provider", c.ttsProvider ?: "— (set OPERATOR_TTS_PROVIDER)")
         KeyValueRow("Voice ID", c.elevenLabsVoiceId ?: "— (Milestone 9)")
         KeyValueRow("Glasses", "— (Milestone 3)")
         KeyValueRow("Remote controller", "— (Milestone 15)")

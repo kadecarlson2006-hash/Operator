@@ -77,6 +77,8 @@ private fun OperatorRoot(viewModel: OperatorViewModel, activity: Activity) {
             onAskPromptChange = viewModel::setAskPrompt,
             onAskSend = viewModel::sendAsk,
             onAskClear = viewModel::clearAsk,
+            onSpeakAnswer = viewModel::speakAnswer,
+            onStopSpeaking = viewModel::stopSpeaking,
             onStartListening = viewModel::startListening,
             onStopListening = viewModel::stopListening,
             onClearTranscripts = viewModel::clearTranscripts,
