@@ -48,7 +48,11 @@ private fun OperatorRoot(viewModel: OperatorViewModel, activity: Activity) {
     // Re-check permissions and routes whenever the screen comes back (e.g. from system settings).
     LifecycleResumeEffect(Unit) {
         viewModel.refreshPermissions()
-        onPauseOrDispose { viewModel.stopAudio() }
+        onPauseOrDispose {
+            viewModel.stopAudio()
+            // Never leave the microphone open behind the user's back.
+            viewModel.stopListening()
+        }
     }
 
     val actions = remember(viewModel) {
@@ -73,6 +77,9 @@ private fun OperatorRoot(viewModel: OperatorViewModel, activity: Activity) {
             onAskPromptChange = viewModel::setAskPrompt,
             onAskSend = viewModel::sendAsk,
             onAskClear = viewModel::clearAsk,
+            onStartListening = viewModel::startListening,
+            onStopListening = viewModel::stopListening,
+            onClearTranscripts = viewModel::clearTranscripts,
         )
     }
 

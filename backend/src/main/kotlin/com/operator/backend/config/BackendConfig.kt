@@ -15,6 +15,8 @@ data class BackendConfig(
     val databasePassword: String? = null,
     val openRouterApiKey: String? = null,
     val elevenLabsApiKey: String? = null,
+    /** Speech-to-text credential (Milestone 8). Separate from the model key: they may be different vendors. */
+    val transcriptionApiKey: String? = null,
     val promptVersion: String = "operator-system-v1",
     /** Allows POST /memory/demo-seed. Off by default; on for local development and CI. */
     val demoSeedEnabled: Boolean = false,
@@ -24,6 +26,8 @@ data class BackendConfig(
     val databaseConfigured: Boolean get() = !databaseUrl.isNullOrBlank()
     val openRouterConfigured: Boolean get() = !openRouterApiKey.isNullOrBlank()
     val elevenLabsConfigured: Boolean get() = !elevenLabsApiKey.isNullOrBlank()
+    val transcriptionConfigured: Boolean
+        get() = !transcriptionApiKey.isNullOrBlank() && !operator.transcriptionModelId.isNullOrBlank()
 
     /** JDBC form of [databaseUrl]. Accepts `postgresql://user:pass@host:port/db` or a `jdbc:` URL. */
     val jdbc: JdbcTarget? get() = databaseUrl?.let { JdbcTarget.from(it, databaseUser, databasePassword) }
@@ -34,6 +38,7 @@ data class BackendConfig(
         "databaseUrl" to jdbc?.redactedUrl,
         "openRouterApiKey" to mask(openRouterApiKey),
         "elevenLabsApiKey" to mask(elevenLabsApiKey),
+        "transcriptionApiKey" to mask(transcriptionApiKey),
         "promptVersion" to promptVersion,
         "fastModelId" to operator.fastModelId,
         "deepModelId" to operator.deepModelId,
@@ -42,6 +47,10 @@ data class BackendConfig(
         "ttsProvider" to operator.ttsProvider,
         "elevenLabsVoiceId" to operator.elevenLabsVoiceId,
         "elevenLabsModelId" to operator.elevenLabsModelId,
+        "transcriptionProvider" to operator.transcriptionProvider,
+        "transcriptionModelId" to operator.transcriptionModelId,
+        "transcriptionBaseUrl" to operator.transcriptionBaseUrl,
+        "transcriptionLanguage" to operator.transcriptionLanguage,
     )
 
     companion object {
@@ -56,6 +65,7 @@ data class BackendConfig(
                 databasePassword = str(Keys.DATABASE_PASSWORD),
                 openRouterApiKey = str(Keys.OPENROUTER_API_KEY),
                 elevenLabsApiKey = str(Keys.ELEVENLABS_API_KEY),
+                transcriptionApiKey = str(Keys.TRANSCRIPTION_API_KEY),
                 promptVersion = str(Keys.PROMPT_VERSION) ?: defaults.promptVersion,
                 demoSeedEnabled = str(Keys.DEMO_SEED_ENABLED)?.toBoolean() ?: defaults.demoSeedEnabled,
                 operator = OperatorConfig.fromMap(values),
@@ -90,6 +100,7 @@ data class BackendConfig(
         const val DATABASE_PASSWORD = "DATABASE_PASSWORD"
         const val OPENROUTER_API_KEY = "OPENROUTER_API_KEY"
         const val ELEVENLABS_API_KEY = "ELEVENLABS_API_KEY"
+        const val TRANSCRIPTION_API_KEY = "TRANSCRIPTION_API_KEY"
         const val PROMPT_VERSION = "OPERATOR_PROMPT_VERSION"
         const val DEMO_SEED_ENABLED = "OPERATOR_DEMO_SEED_ENABLED"
     }

@@ -26,6 +26,9 @@ class AskOperatorControllerTest {
             failure?.let { throw it }
             return reply!!
         }
+
+        override suspend fun transcribe(pcm: ByteArray, sampleRateHz: Int, channels: Int, sessionId: String?) =
+            throw UnsupportedOperationException("this fake only answers text questions")
     }
 
     private val answer = AskResponse(

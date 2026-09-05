@@ -9,7 +9,10 @@ enum class Subsystem(val label: String, val implementedInMilestone: Int) {
     MICROPHONE("Microphone", 1),
     AUDIO_OUTPUT("Audio Output", 1),
     AI("AI", 6),
-    VOICE("Voice", 8),
+    /** Speech in: voice-activity detection and transcription (Milestone 8). */
+    HEARING("Hearing", 8),
+    /** Speech out: text-to-speech (Milestone 9). */
+    VOICE("Voice", 9),
     MEMORY("Memory", 5),
     REMOTE_CONTROLLER("Remote Controller", 15),
 }

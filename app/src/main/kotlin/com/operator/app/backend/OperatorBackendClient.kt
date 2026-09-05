@@ -53,6 +53,18 @@ data class AskResponse(
     val retrievalNote: String? = null,
 )
 
+/** The transcript of one utterance (Milestone 8). */
+@Serializable
+data class TranscribeResponse(
+    val text: String,
+    val provider: String = "",
+    val languageCode: String? = null,
+    val audioSeconds: Double? = null,
+    val latencyMillis: Long = 0,
+    /** True when the audio held no recognisable speech. Silence is a result, not an error. */
+    val empty: Boolean = false,
+)
+
 /** A failed backend call, already phrased for the user. */
 class BackendException(message: String) : Exception(message)
 
@@ -63,6 +75,14 @@ class BackendException(message: String) : Exception(message)
 interface OperatorBackend {
     val configured: Boolean
     suspend fun ask(prompt: String, tier: String? = null, sessionId: String? = null, mode: String? = null, wit: String? = null): AskResponse
+
+    /**
+     * Sends one utterance for transcription. [pcm] is little-endian PCM-16, which is what
+     * AudioRecord produces; sending it raw avoids the third that base64 would add on the
+     * latency path.
+     */
+    suspend fun transcribe(pcm: ByteArray, sampleRateHz: Int, channels: Int = 1, sessionId: String? = null): TranscribeResponse
+
     fun close() = Unit
 }
 
@@ -101,6 +121,35 @@ class OperatorBackendClient(private val baseUrl: String?) : OperatorBackend {
             response.body<AskResponse>()
         } catch (e: Exception) {
             throw BackendException("Unreadable backend response: ${e.message}")
+        }
+    }
+
+    override suspend fun transcribe(pcm: ByteArray, sampleRateHz: Int, channels: Int, sessionId: String?): TranscribeResponse {
+        val base = baseUrl?.trimEnd('/')
+            ?: throw BackendException("No backend URL configured. Set OPERATOR_BACKEND_URL in local.properties.")
+        val query = buildString {
+            append("?sampleRateHz=").append(sampleRateHz)
+            append("&channels=").append(channels)
+            sessionId?.let { append("&sessionId=").append(it) }
+        }
+        val response = try {
+            client.post("$base/transcribe$query") {
+                contentType(ContentType.Application.OctetStream)
+                setBody(pcm)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Backend unreachable", e)
+            throw BackendException("Backend unreachable at $base (${e.message ?: e::class.simpleName})")
+        }
+        val text = response.bodyAsText()
+        if (response.status.value !in 200..299) {
+            val message = runCatching { json.parseToJsonElement(text).jsonObject["error"]?.jsonPrimitive?.content }.getOrNull()
+            throw BackendException("Transcription ${response.status.value}: ${message ?: text.take(200)}")
+        }
+        return try {
+            response.body<TranscribeResponse>()
+        } catch (e: Exception) {
+            throw BackendException("Unreadable transcription response: ${e.message}")
         }
     }
 

@@ -7,7 +7,7 @@ it whispers something useful, corrective, or funny.
 
 > Silence is the default. `NO_RESPONSE` is the most common outcome by design.
 
-**Status:** Milestones 0–7 implemented; see [CURRENT_STATUS.md](CURRENT_STATUS.md) and [docs/META_GLASSES.md](docs/META_GLASSES.md).
+**Status:** Milestones 0–8 implemented; see [CURRENT_STATUS.md](CURRENT_STATUS.md) and [docs/META_GLASSES.md](docs/META_GLASSES.md).
 
 ## Hardware target
 
@@ -117,6 +117,26 @@ In the app, the **Ask Operator** panel needs `OPERATOR_BACKEND_URL` in `local.pr
 (`http://10.0.2.2:8080` from the emulator, `http://<laptop-ip>:8080` from a phone; debug builds
 allow cleartext HTTP, release builds do not).
 
+### Hearing (Milestone 8)
+
+The phone opens the microphone, runs voice-activity detection locally, and uploads only complete
+utterances — silence never leaves the device. The backend holds the speech credential and posts
+the audio to an OpenAI-compatible `/audio/transcriptions` endpoint.
+
+```
+POST /transcribe?sampleRateHz=16000&channels=1[&sessionId=]
+Content-Type: application/octet-stream
+body: raw little-endian PCM-16
+
+200 {"text":"...","provider":"...","languageCode":"en","audioSeconds":1.5,
+     "latencyMillis":420,"empty":false}
+```
+
+Configure `TRANSCRIPTION_API_KEY` and `OPERATOR_TRANSCRIPTION_MODEL_ID` in the backend `.env`;
+`OPERATOR_TRANSCRIPTION_BASE_URL` points the same wire format at another vendor or a self-hosted
+Whisper server. The phone needs no transcription credential. An empty transcript is returned as an
+empty result, not an error.
+
 ### Memory API (Milestone 5)
 
 | Method | Path | Purpose |
@@ -198,6 +218,7 @@ Highlights:
 | `github_token`, `MWDAT_APPLICATION_ID`, `MWDAT_CLIENT_TOKEN` | Meta toolkit download token and attestation (0/0 = Developer Mode) |
 | `OPERATOR_*_MODEL_ID` | Fast / deep / decision / vision model IDs (never hard-coded) |
 | `OPERATOR_TTS_PROVIDER`, `OPERATOR_ELEVENLABS_VOICE_ID`, `OPERATOR_ELEVENLABS_MODEL_ID` | Voice |
+| `TRANSCRIPTION_API_KEY`, `OPERATOR_TRANSCRIPTION_MODEL_ID`, `OPERATOR_TRANSCRIPTION_BASE_URL`, `OPERATOR_TRANSCRIPTION_LANGUAGE` | Hearing (backend only) |
 | `ROLLING_CONTEXT_SECONDS`, `MIN_COMMENT_INTERVAL_SECONDS`, `MAX_COMMENTS_PER_5_MINUTES` | Anti-annoyance |
 
 ## Privacy model

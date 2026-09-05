@@ -15,4 +15,8 @@ data class Transcript(
     val text: String,
     val languageCode: String? = null,
     val latencyMillis: Long? = null,
+    /** Length of the audio that was transcribed, when the provider reports it. */
+    val audioSeconds: Double? = null,
+    /** Which provider produced this, for diagnostics and usage accounting. */
+    val provider: String? = null,
 )

@@ -10,12 +10,13 @@ operator/
 │       ├── state         OperatorStateManager (StateFlow + events)
 │       ├── config        OperatorConfig (+ canonical key names)
 │       ├── audio         AudioRoute, RouteSelection, PcmClip, RecordingState,
-│       │                 AudioRecorder/AudioPlayer ports, AudioLoopbackController
+│       │                 AudioRecorder/AudioPlayer ports, AudioLoopbackController,
+│       │                 VoiceActivityDetector, SpeechSegmenter, WavEncoder (Milestone 8)
 │       ├── diagnostics   LatencyTimeline, DiagnosticsSnapshot, RouteEventLog
 │       ├── glasses       GlassesProvider contract, GlassesState, NoGlassesProvider (Milestone 3)
 │       ├── decision      ResponseCategory, ResponseDecision, ResponseDecisionEngine, SilentDecisionEngine
 │       ├── ai            AIProvider contract            (Milestone 6)
-│       ├── tts           TTSProvider contract           (Milestone 8/9)
+│       ├── tts           TTSProvider contract           (Milestone 9)
 │       ├── transcription TranscriptionProvider contract (Milestone 8)
 │       └── memory        MemoryRepository contract      (Milestone 5)
 ├── backend/   Ktor server (pure JVM) — ADR-017
@@ -25,7 +26,8 @@ operator/
 │       ├── health        HealthReporter, GET /health
 │       ├── memory        MemoryStore contract, PostgresMemoryStore (JDBC + pgvector),
 │       │                 InMemoryMemoryStore, MemoryRoutes, DemoMemories (Milestone 5)
-│       └── providers     ProviderRegistry — AI/TTS/transcription slots (not configured until M6/8/9)
+│       ├── transcription OpenAiCompatibleTranscriptionProvider, POST /transcribe (Milestone 8)
+│       └── providers     ProviderRegistry — AI (M6), transcription (M8), TTS (M9) slots
 ├── glasses-meta/  optional Android library — the only module importing com.meta.wearable.dat.*
 │   └── com.operator.glasses.meta   MetaGlassesManager, MetaGlassesProviderFactory, MetaCapabilities
 └── app/    Android — Jetpack Compose
@@ -35,7 +37,10 @@ operator/
         ├── config        BuildConfigLoader
         ├── permissions   MicrophonePermission, BluetoothPermission
         ├── audio         AudioRouteMapper, AudioRouteMonitor, CommunicationLink,
-        │                 AndroidAudioRecorder, AndroidAudioPlayer, AudioSubsystemReporter
+        │                 AndroidAudioRecorder, AndroidAudioPlayer, AudioSubsystemReporter,
+        │                 MicrophoneSource port + ContinuousMicrophone (Milestone 8),
+        │                 PcmCapture (AudioRecord setup shared by both capture paths)
+        ├── transcription ListenController — mic → VAD → utterance → backend (Milestone 8)
         ├── bluetooth     BluetoothStatusMonitor (adapter state, paired devices)
         ├── glasses       GlassesProviderLoader (reflective factory lookup), GlassesSubsystemReporter
         └── ui            OperatorViewModel, OperatorUiState, OperatorScreen, theme, components

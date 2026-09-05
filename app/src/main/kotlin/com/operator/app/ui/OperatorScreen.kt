@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import com.operator.app.ui.components.ConsolePanel
 import com.operator.app.ui.components.KeyValueRow
 import com.operator.app.ui.components.SubsystemRow
+import com.operator.app.transcription.ListenStatus
 import com.operator.app.ui.theme.OperatorColors
 import com.operator.core.audio.AudioRoute
 import com.operator.core.audio.RecordingState
@@ -66,6 +67,9 @@ data class OperatorActions(
     val onAskPromptChange: (String) -> Unit = {},
     val onAskSend: () -> Unit = {},
     val onAskClear: () -> Unit = {},
+    val onStartListening: () -> Unit = {},
+    val onStopListening: () -> Unit = {},
+    val onClearTranscripts: () -> Unit = {},
 )
 
 @Composable
@@ -85,6 +89,7 @@ fun OperatorScreen(state: OperatorUiState, actions: OperatorActions) {
             ModePanel(state, actions)
             WitPanel(state, actions)
             AskOperatorPanel(state, actions)
+            ListenPanel(state, actions)
             AudioTestPanel(state, actions)
             BluetoothPanel(state, actions)
             GlassesPanel(state, actions)
@@ -310,6 +315,104 @@ private fun AskOperatorPanel(state: OperatorUiState, actions: OperatorActions) {
         ask.error?.let {
             Spacer(Modifier.height(10.dp))
             KeyValueRow("Error", it, OperatorColors.Alert)
+        }
+    }
+}
+
+
+@Composable
+private fun ListenPanel(state: OperatorUiState, actions: OperatorActions) {
+    val listen = state.listen
+    ConsolePanel("Listen · Milestone 8") {
+        if (state.config.backendUrl.isNullOrBlank()) {
+            Text(
+                "No backend configured. Set OPERATOR_BACKEND_URL in local.properties and rebuild.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = OperatorColors.AmberDim,
+            )
+            Spacer(Modifier.height(8.dp))
+        }
+        Text(
+            "Speech is detected on the phone; only complete utterances are sent. Silence never leaves the device.",
+            style = MaterialTheme.typography.bodySmall,
+            color = OperatorColors.CreamDim,
+        )
+        Spacer(Modifier.height(10.dp))
+
+        KeyValueRow(
+            "STATUS",
+            listen.status.label,
+            valueColor = when (listen.status) {
+                ListenStatus.ERROR -> OperatorColors.Alert
+                ListenStatus.CAPTURING, ListenStatus.TRANSCRIBING -> OperatorColors.Amber
+                else -> OperatorColors.Cream
+            },
+        )
+        listen.route?.let { KeyValueRow("ACTUAL INPUT", it) }
+        KeyValueRow("UTTERANCES", listen.utterances.toString())
+
+        if (listen.listening) {
+            Spacer(Modifier.height(8.dp))
+            Text("LEVEL", style = MaterialTheme.typography.labelSmall, color = OperatorColors.AmberDim)
+            LinearProgressIndicator(
+                progress = { listen.level.coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                color = if (listen.status == ListenStatus.CAPTURING) OperatorColors.Amber else OperatorColors.AmberDim,
+                trackColor = OperatorColors.Outline,
+            )
+        }
+
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = if (listen.listening) actions.onStopListening else actions.onStartListening,
+                enabled = state.microphonePermissionGranted && !state.operator.muted,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (listen.listening) OperatorColors.Alert else OperatorColors.Amber,
+                    contentColor = OperatorColors.Background,
+                ),
+            ) { Text(if (listen.listening) "STOP LISTENING" else "START LISTENING", style = MaterialTheme.typography.labelSmall) }
+            OutlinedButton(
+                onClick = actions.onClearTranscripts,
+                enabled = listen.transcripts.isNotEmpty(),
+                modifier = Modifier.weight(1f),
+            ) { Text("CLEAR", style = MaterialTheme.typography.labelSmall) }
+        }
+
+        if (!state.microphonePermissionGranted) {
+            Spacer(Modifier.height(8.dp))
+            Text("Microphone permission is required.", style = MaterialTheme.typography.bodySmall, color = OperatorColors.AmberDim)
+        }
+        if (state.operator.muted) {
+            Spacer(Modifier.height(8.dp))
+            Text("Muted. Operator does not listen while muted.", style = MaterialTheme.typography.bodySmall, color = OperatorColors.Alert)
+        }
+
+        listen.error?.let {
+            Spacer(Modifier.height(10.dp))
+            Text(it, style = MaterialTheme.typography.bodyMedium, color = OperatorColors.Alert)
+        }
+
+        if (listen.transcripts.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            Text("HEARD (IN MEMORY ONLY)", style = MaterialTheme.typography.labelSmall, color = OperatorColors.AmberDim)
+            listen.transcripts.asReversed().forEach { line ->
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    if (line.empty) "(no speech recognised)" else line.text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (line.empty) OperatorColors.CreamDim else OperatorColors.Cream,
+                )
+                val detail = listOfNotNull(
+                    line.audioSeconds?.let { "%.1fs audio".format(it) },
+                    line.latencyMillis?.let { "${it}ms provider" },
+                    line.roundTripMillis?.let { "${it}ms round trip" },
+                ).joinToString(" · ")
+                if (detail.isNotEmpty()) {
+                    Text(detail, style = MaterialTheme.typography.labelSmall, color = latencyColor(line.roundTripMillis))
+                }
+            }
         }
     }
 }
