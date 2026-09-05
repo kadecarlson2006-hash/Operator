@@ -1,6 +1,7 @@
 package com.operator.app.ui
 
 import com.operator.app.audio.AudioRoutes
+import com.operator.app.backend.AskState
 import com.operator.app.bluetooth.BluetoothStatus
 import com.operator.core.audio.AudioLoopbackState
 import com.operator.core.config.OperatorConfig
@@ -21,6 +22,7 @@ data class OperatorUiState(
     val bluetoothPermissionGranted: Boolean = false,
     val bluetoothPermissionIsRuntime: Boolean = false,
     val routeEvents: List<RouteEvent> = emptyList(),
+    val ask: AskState = AskState(),
     val glasses: GlassesState = GlassesState(providerName = "none", sdkPresent = false),
     val glassesActions: List<GlassesAction> = emptyList(),
     /** Short description of the last state event, for the diagnostics card. */

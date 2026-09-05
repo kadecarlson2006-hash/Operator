@@ -70,6 +70,9 @@ private fun OperatorRoot(viewModel: OperatorViewModel, activity: Activity) {
             onRefresh = viewModel::refreshPermissions,
             onClearRouteLog = viewModel::clearRouteLog,
             onGlassesAction = { action -> viewModel.runGlassesAction(action, activity) },
+            onAskPromptChange = viewModel::setAskPrompt,
+            onAskSend = viewModel::sendAsk,
+            onAskClear = viewModel::clearAsk,
         )
     }
 

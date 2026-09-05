@@ -32,7 +32,7 @@ android {
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1
-        versionName = "0.3.0-m3"
+        versionName = "0.6.0-m6"
 
         // Meta Wearables DAT attestation. "0"/"0" = Developer Mode (Meta AI app must have Developer Mode on).
         manifestPlaceholders["mwdat_application_id"] = configValue("MWDAT_APPLICATION_ID", "0")
@@ -85,6 +85,10 @@ dependencies {
     }
 
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.okhttp)
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)

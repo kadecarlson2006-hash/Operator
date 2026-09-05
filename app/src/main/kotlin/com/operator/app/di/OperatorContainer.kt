@@ -5,6 +5,9 @@ import com.operator.app.audio.AndroidAudioPlayer
 import com.operator.app.audio.AndroidAudioRecorder
 import com.operator.app.audio.AudioRouteMonitor
 import com.operator.app.audio.AudioSubsystemReporter
+import com.operator.app.backend.AskOperatorController
+import com.operator.app.backend.OperatorBackend
+import com.operator.app.backend.OperatorBackendClient
 import com.operator.app.audio.CommunicationLink
 import com.operator.app.bluetooth.BluetoothStatusMonitor
 import com.operator.app.config.BuildConfigLoader
@@ -20,6 +23,9 @@ import com.operator.core.decision.ResponseDecisionEngine
 import com.operator.core.decision.SilentDecisionEngine
 import com.operator.core.diagnostics.RouteEventLog
 import com.operator.core.glasses.GlassesProvider
+import com.operator.core.model.Subsystem
+import com.operator.core.model.SubsystemState
+import com.operator.core.model.SubsystemStatus
 import com.operator.core.state.OperatorStateManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -69,6 +75,10 @@ class OperatorContainer(app: Application) {
     /** Placeholder until Milestone 12. Always NO_RESPONSE. */
     val decisionEngine: ResponseDecisionEngine = SilentDecisionEngine
 
+    /** Milestone 6: the phone's only route to the models; credentials stay on the backend. */
+    val backendClient: OperatorBackend = OperatorBackendClient(config.backendUrl)
+    val ask = AskOperatorController(backendClient, appScope)
+
     /** Meta Wearables toolkit when compiled in, otherwise an honest no-op (ADR-004 / ADR-013). */
     val glasses: GlassesProvider = GlassesProviderLoader.load(app, appScope)
     private val glassesSubsystemReporter = GlassesSubsystemReporter(stateManager, glasses)
@@ -85,6 +95,11 @@ class OperatorContainer(app: Application) {
         bluetoothStatus.start()
         audioSubsystemReporter.start(appScope)
         glassesSubsystemReporter.start(appScope)
+        stateManager.updateSubsystem(
+            Subsystem.AI,
+            if (backendClient.configured) SubsystemStatus(SubsystemState.READY, config.backendUrl)
+            else SubsystemStatus(SubsystemState.NOT_CONFIGURED, "Set OPERATOR_BACKEND_URL"),
+        )
         // Initialise the vendor SDK at process start, like Meta's samples do in Application.onCreate.
         glasses.initialize()
         // A selected device that disconnects must not silently keep being "selected".
