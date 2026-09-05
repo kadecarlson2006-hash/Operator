@@ -1,20 +1,23 @@
 # CURRENT STATUS — OPERATOR
 
-**Current milestone:** 6 — Basic text AI (implemented; backend verified locally, Android and CI not yet verified)
+**Current milestone:** 6 — Basic text AI (implemented and CI-verified; merged to `main`)
 
-**Branch note:** this work sits on `claude/milestone-6-text-ai`, which is stacked on
-`claude/milestone-5-memory`. Neither is merged: `main` currently ends at Milestone 4.
+**`main` contains Milestones 0 through 6.** Milestones 1 to 3 still await verification on real
+hardware, and Milestone 6 has never made a live model call. Both gaps are listed below.
 
 **Last updated:** 2026-09-05
 
 ## What works (verified)
 
-- Milestone 6 backend: OpenRouter provider (wire format verified against OpenRouter's own
+- Milestone 6: OpenRouter provider (wire format verified against OpenRouter's own
   published SDK, see risk 27), `ModelRouter` for the FAST/DEEP/VISION tiers, `PromptLibrary`
   loading versioned personality prompts, `POST /ai/respond`, `GET /usage`, and an in-process
   `UsageTracker`. 45 backend unit tests pass locally, 23 of them new, including the provider
   against a mock HTTP engine (success, error envelope on both 4xx and 200, unknown fields,
   transport failure) and the route (routing, failure mapping, usage counting, no prompt echo).
+  On the phone, the Ask Operator panel and its backend client, with 3 unit tests. CI run #6 is
+  green on core and backend tests, app unit tests, `assembleDebug`, and the pgvector integration
+  job.
 
 - Memory database v1: normalized schema (users, organizations, people, projects, memories,
   memory_embeddings on pgvector, memory_events, conversation_sessions), `MemoryStore` with
@@ -32,14 +35,12 @@
   workflow token) and app unit tests pass in GitHub Actions (run #11); debug APK attached to each
   green run as `operator-debug-apk` (about 21 MB with the Meta SDK).
 
-## What is implemented but NOT verified anywhere yet
+## What is implemented but NOT yet exercised for real
 
-- Milestone 6 Android: the "Ask Operator" panel (question box, SEND, answer, model, tier, prompt
-  version, round-trip and model latency, token counts) and the backend client behind an
-  `OperatorBackend` interface. The module has not compiled since the Ktor client dependency was
-  added, because the authoring sandbox has no Android SDK. CI has not run on this branch.
-- Milestone 6 end to end: no live model call has been made. It needs `OPENROUTER_API_KEY` and
-  `OPERATOR_FAST_MODEL_ID` in the backend `.env`.
+- Milestone 6 end to end: no live model call has ever been made. Every provider test uses a mock
+  HTTP engine. To try it for real, put `OPENROUTER_API_KEY` and `OPERATOR_FAST_MODEL_ID` in the
+  backend `.env`, `OPERATOR_BACKEND_URL` in the app's `local.properties`, then use the Ask
+  Operator panel. Risks 27 and 28.
 
 ## What is implemented but NOT yet verified on a device
 

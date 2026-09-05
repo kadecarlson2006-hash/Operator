@@ -33,4 +33,4 @@ Update this file whenever a test answers a question.
 | 26 | Text search is ILIKE only | ACCEPTED (v1) | GIN tsvector index already exists; Milestone 7 combines lexical + semantic + structured filters. |
 | 27 | OpenRouter wire format was verified against their published SDK, not the hosted reference | UNKNOWN TO VERIFY | `openrouter.ai` is blocked by the build sandbox's egress proxy, so the request/response/error shapes in `OpenRouterApi.kt` come from `@openrouter/ai-sdk-provider` 3.0.0 (OpenRouter's own package). Cross-check against the hosted docs from a workstation, and confirm with one live call. |
 | 28 | No live model call has been made yet | UNKNOWN TO VERIFY | Everything is exercised with a mock HTTP engine. The first real call needs `OPENROUTER_API_KEY` and `OPERATOR_FAST_MODEL_ID` in the backend `.env`. |
-| 29 | The Android module has not compiled since the Ktor client was added | UNKNOWN TO VERIFY | No Android SDK in the authoring sandbox; the CI build job decides. |
+| 29 | The Android module has not compiled since the Ktor client was added | VERIFIED | CI run #6: app unit tests and `assembleDebug` both green with the Ktor/OkHttp client in place. |
