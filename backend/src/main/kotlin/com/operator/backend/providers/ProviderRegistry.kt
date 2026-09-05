@@ -1,5 +1,6 @@
 package com.operator.backend.providers
 
+import com.operator.backend.ai.OpenRouterProvider
 import com.operator.backend.config.BackendConfig
 import com.operator.core.ai.AIProvider
 import com.operator.core.ai.AIRequest
@@ -18,14 +19,19 @@ import kotlinx.serialization.Serializable
  * Milestone 6 replaces the AI slot with OpenRouterProvider, Milestone 8/9 the others.
  */
 class ProviderRegistry(config: BackendConfig) {
-    val ai: AIProvider = NotConfiguredAIProvider
+    /** Real OpenRouter client once a key is configured, otherwise a provider that fails loudly. */
+    val ai: AIProvider = if (config.openRouterConfigured) {
+        OpenRouterProvider(apiKey = config.openRouterApiKey!!, appTitle = "Operator")
+    } else {
+        NotConfiguredAIProvider
+    }
     val tts: TTSProvider = NotConfiguredTTSProvider
     val transcription: TranscriptionProvider = NotConfiguredTranscriptionProvider
 
     val status = ProviderStatus(
         ai = SlotStatus(
-            provider = if (config.openRouterConfigured) "openrouter (pending Milestone 6)" else "none",
-            configured = config.openRouterConfigured,
+            provider = if (config.openRouterConfigured) "openrouter" else "none",
+            configured = config.openRouterConfigured && !config.operator.fastModelId.isNullOrBlank(),
             detail = listOfNotNull(
                 config.operator.fastModelId?.let { "fast=$it" },
                 config.operator.deepModelId?.let { "deep=$it" },
@@ -47,6 +53,8 @@ data class SlotStatus(val provider: String, val configured: Boolean, val detail:
 
 @Serializable
 data class ProviderStatus(val ai: SlotStatus, val tts: SlotStatus, val transcription: SlotStatus)
+
+fun ProviderRegistry.close() { (ai as? OpenRouterProvider)?.close() }
 
 class ProviderNotConfiguredException(slot: String) : IllegalStateException("$slot provider is not configured")
 
