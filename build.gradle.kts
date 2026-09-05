@@ -18,6 +18,7 @@ buildscript {
     dependencies {
         classpath(libs.kotlin.gradlePlugin)
         classpath(libs.compose.gradlePlugin)
+        classpath(libs.kotlin.serialization.gradlePlugin)
         val skipAndroid = providers.gradleProperty("operator.skipAndroid").map(String::toBoolean).getOrElse(false)
         if (!skipAndroid) {
             classpath(libs.android.gradlePlugin)

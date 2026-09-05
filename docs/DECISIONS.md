@@ -163,3 +163,28 @@ needs crash data for a specific bug.
 DAT 0.9.0 has no microphone or speaker API (docs/META_GLASSES.md). `GlassesProvider` therefore
 has no audio methods at all; audio stays in the audio subsystem over standard Bluetooth. If a
 later SDK adds audio, it will be a new capability behind the same interface, not a rewrite.
+
+## ADR-017: Backend is a Kotlin/Ktor modular monolith sharing `:core`
+
+**Status:** Accepted (Milestone 4)
+
+Options weighed, per the brief:
+
+| Option | For | Against |
+|---|---|---|
+| **Kotlin / Ktor** (chosen) | Shares `:core` (provider contracts, `ResponseDecision`, config keys) with the phone in one Gradle build; one language; coroutines/Flow end to end; native WebSockets and streaming; plain HTTP is all OpenRouter/ElevenLabs need; PostgreSQL via JDBC, pgvector via SQL; fat-jar/Docker deploy; builds and tests on a plain JDK (this repo's CI and the authoring sandbox). | Smaller AI-library ecosystem than Python; pgvector has no Kotlin client, so vectors are SQL text. |
+| Python / FastAPI | Richest AI SDK ecosystem; pgvector helpers; quick prototyping. | Second language; duplicated domain model that drifts from the Kotlin app; two build systems. |
+| TypeScript / Node | Good streaming and SDK coverage. | Second language; weaker typing for the memory schema; same duplication cost. |
+
+Structure: one deployable, packages by concern (`config`, `db`, `health`, `providers`, later
+`ai`, `memory`, `tts`, `transcription`). No microservices.
+
+## ADR-018: `/health` tells the truth and degrades instead of crashing
+
+**Status:** Accepted (Milestone 4)
+
+A configured-but-unreachable database does not stop the process: startup logs the error and
+`/health` answers **503** with the full report (database error, provider slots, redacted
+config). A reachable database answers **200** with the pgvector version and migrations applied.
+Secrets are masked to their last four characters and never returned; the JDBC URL is shown
+without credentials. Load balancers get a real signal, humans get a diagnosis.

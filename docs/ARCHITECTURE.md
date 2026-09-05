@@ -18,6 +18,12 @@ operator/
 │       ├── tts           TTSProvider contract           (Milestone 8/9)
 │       ├── transcription TranscriptionProvider contract (Milestone 8)
 │       └── memory        MemoryRepository contract      (Milestone 5)
+├── backend/   Ktor server (pure JVM) — ADR-017
+│   └── com.operator.backend
+│       ├── config        BackendConfig (+ .env loader, redaction, DATABASE_URL → JDBC)
+│       ├── db            DatabaseGateway, PostgresGateway (HikariCP + Flyway), migrations
+│       ├── health        HealthReporter, GET /health
+│       └── providers     ProviderRegistry — AI/TTS/transcription slots (not configured until M6/8/9)
 ├── glasses-meta/  optional Android library — the only module importing com.meta.wearable.dat.*
 │   └── com.operator.glasses.meta   MetaGlassesManager, MetaGlassesProviderFactory, MetaCapabilities
 └── app/    Android — Jetpack Compose

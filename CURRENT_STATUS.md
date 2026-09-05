@@ -1,11 +1,15 @@
 # CURRENT STATUS — OPERATOR
 
-**Current milestone:** 3 — Meta device access (implemented; awaiting device verification of Milestones 1–3)
+**Current milestone:** 4 — Backend skeleton (implemented and CI-verified; Milestones 1–3 still await device verification)
 
 **Last updated:** 2026-09-05
 
 ## What works (verified)
 
+- `:backend` (Ktor 3.5, HikariCP, Flyway, pgvector): `/health` with truthful database and
+  provider status, redacted config, `.env` loading; 10 unit tests pass locally and in CI, and the
+  CI integration job boots it against `pgvector/pgvector:0.8.6-pg17` and gets `status: ok` with
+  the pgvector version reported.
 - `:core` compiles and its 39 unit tests pass locally and in CI.
 - `:app` and `:glasses-meta` compile (`assembleDebug`, SDK pulled from GitHub Packages with the
   workflow token) and app unit tests pass in GitHub Actions (run #11); debug APK attached to each
@@ -37,8 +41,10 @@ registration, and mock testing.
 
 ## What does not work / not started
 
-- Camera streaming/photo (Milestone 16), backend, memory, AI, TTS, transcription, rolling
-  context, decision engine, BLE ring, integrations.
+- Backend has no memory schema (Milestone 5) and no model/TTS/transcription calls (6/8/9); the
+  provider slots report "not configured". No authentication yet (designed later per the brief).
+- Camera streaming/photo (Milestone 16), AI, TTS, transcription, rolling context, decision
+  engine, BLE ring, integrations.
 - No launcher icon.
 
 ## Current blockers
@@ -46,7 +52,7 @@ registration, and mock testing.
 - Human verification on hardware. Milestone 3 additionally needs: the Meta AI app with
   Developer Mode enabled, the glasses paired to it, and a GitHub token for the build.
 
-## Next test (required before Milestone 4)
+## Next test (device checks still owed for Milestones 1–3; Milestone 5 can proceed in parallel)
 
 Milestone 1 (phone audio): launch → GRANT MICROPHONE → RECORD TEST → PLAY TEST → speech
 understandable → actual devices correct.

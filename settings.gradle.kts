@@ -4,6 +4,7 @@
 //   :core  pure Kotlin/JVM — domain model, state, provider contracts. No Android dependency.
 //          Compiles and tests on any JDK 17+ machine without the Android SDK.
 //   :app   Android application — Jetpack Compose UI, audio, permissions, diagnostics.
+//   :backend  Ktor server — owns provider credentials, PostgreSQL + pgvector memory (Milestone 4+).
 //
 // Backend, memory, and provider modules will be added alongside these in later milestones.
 //
@@ -60,6 +61,7 @@ rootProject.name = "operator"
 val skipAndroid = providers.gradleProperty("operator.skipAndroid").map(String::toBoolean).getOrElse(false)
 
 include(":core")
+include(":backend")
 if (!skipAndroid) {
     include(":app")
     if (metaSdkEnabled) {

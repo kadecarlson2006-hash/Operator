@@ -1,4 +1,4 @@
-name: Android
+name: Build
 
 on:
   push:
@@ -32,8 +32,8 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Core tests (pure JVM)
-        run: ./gradlew :core:test -Poperator.skipAndroid=true --no-daemon
+      - name: Core and backend tests (pure JVM)
+        run: ./gradlew :core:test :backend:test -Poperator.skipAndroid=true --no-daemon
 
       - name: App unit tests
         run: ./gradlew :app:testDebugUnitTest -Poperator.metaSdk=true --no-daemon
@@ -56,5 +56,58 @@ jobs:
           name: operator-test-reports
           path: |
             core/build/reports/tests/
+            backend/build/reports/tests/
             app/build/reports/tests/
           if-no-files-found: ignore
+
+  backend-integration:
+    name: Backend against PostgreSQL + pgvector
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.6-pg17
+        env:
+          POSTGRES_USER: operator
+          POSTGRES_PASSWORD: operator
+          POSTGRES_DB: operator
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U operator -d operator"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build backend distribution
+        run: ./gradlew :backend:installDist -Poperator.skipAndroid=true --no-daemon
+      - name: Boot backend and check /health
+        env:
+          DATABASE_URL: postgresql://operator:operator@localhost:5432/operator
+          OPERATOR_BACKEND_PORT: "8080"
+        run: |
+          backend/build/install/backend/bin/backend > backend.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sf localhost:8080/health -o health.json; then break; fi
+            sleep 1
+          done
+          echo "--- /health"; cat health.json || { echo "backend never answered"; cat backend.log; exit 1; }
+          python3 - <<'EOF'
+          import json
+          h = json.load(open("health.json"))
+          assert h["status"] == "ok", h
+          assert h["database"]["reachable"] is True, h["database"]
+          assert h["database"]["pgvector"], "pgvector extension not reported"
+          assert h["database"]["migrationsApplied"] >= 1, h["database"]
+          assert "operator:operator" not in json.dumps(h), "credentials leaked into /health"
+          print("pgvector", h["database"]["pgvector"], "| migrations", h["database"]["migrationsApplied"], "| server", h["database"]["serverVersion"])
+          EOF
+      - name: Backend log
+        if: always()
+        run: cat backend.log || true

@@ -27,3 +27,5 @@ Update this file whenever a test answers a question.
 | 20 | Meta SDK 0.9.0 AAR compatibility with AGP 9.4 / Kotlin 2.4 / compileSdk 37 | VERIFIED (compile) | `:glasses-meta` compiles and packages in CI run #11 with no warnings; runtime behaviour still needs the phone. |
 | 21 | Registration return deep link: does the URL scheme need to be declared anywhere besides the manifest? | UNKNOWN TO VERIFY | Samples only declare the intent filter; verify the round trip on the phone. |
 | 22 | Device type string reported for Ray-Ban Meta Gen 2 (classic vs `META_GLASSES`) and Bluetooth profile (HFP vs LE Audio) | UNKNOWN TO VERIFY | Read off the Glasses panel and the Bluetooth device table. |
+| 23 | Flyway 13 + pgvector migration on a fresh database | VERIFIED (CI) | The CI integration job runs the backend against `pgvector/pgvector:0.8.6-pg17` and `/health` reports the extension version; a workstation `docker compose up` should behave the same. |
+| 24 | `/health` exposing anything sensitive | MITIGATED | Redacted config only (last four characters of keys, JDBC URL without credentials); unit test asserts raw secrets never appear in the body. |

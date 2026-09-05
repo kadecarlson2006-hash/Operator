@@ -7,7 +7,7 @@ it whispers something useful, corrective, or funny.
 
 > Silence is the default. `NO_RESPONSE` is the most common outcome by design.
 
-**Status:** Milestones 0–3 implemented; see [CURRENT_STATUS.md](CURRENT_STATUS.md) and [docs/META_GLASSES.md](docs/META_GLASSES.md).
+**Status:** Milestones 0–4 implemented; see [CURRENT_STATUS.md](CURRENT_STATUS.md) and [docs/META_GLASSES.md](docs/META_GLASSES.md).
 
 ## Hardware target
 
@@ -26,13 +26,14 @@ Two Gradle modules today, more later:
 |--------|---------|
 | `:core` | Pure Kotlin/JVM. Domain model (`OperatorMode`, `WitLevel`, `OperatorState`), `OperatorStateManager`, provider contracts (`AIProvider`, `TTSProvider`, `TranscriptionProvider`, `MemoryRepository`), `ResponseDecision`, latency timeline, audio loopback state machine. No Android. |
 | `:glasses-meta` | Optional. The only module that touches the Meta Wearables Device Access Toolkit; implements `GlassesProvider`. Included when a GitHub Packages token is present. |
+| `:backend` | Ktor server (ADR-017). Owns provider credentials, PostgreSQL + pgvector (Flyway migrations), `/health`. Pure JVM. |
 | `:app` | Android app. Jetpack Compose UI, `AudioRecord`/`AudioTrack` implementations with explicit route selection, Bluetooth communication-link handling, permission handling, diagnostics. |
 
 Full layout and data flow: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 Decisions: [docs/DECISIONS.md](docs/DECISIONS.md). Unknowns: [docs/RISKS_AND_UNKNOWNS.md](docs/RISKS_AND_UNKNOWNS.md).
 
-Planned backend (Milestone 4+): a modular monolith owning provider credentials, PostgreSQL +
-pgvector memory, and streaming endpoints. The app never holds provider secrets.
+The backend is a Kotlin/Ktor modular monolith that owns provider credentials and the
+PostgreSQL + pgvector memory store; the app never holds provider secrets.
 
 ## Setup
 
@@ -77,13 +78,29 @@ adb logcat -s AndroidAudioRecorder AndroidAudioPlayer AudioRouteMonitor Bluetoot
 locked-down CI agents and plain laptops. (All plugins otherwise share one root classpath — see
 the comment in `build.gradle.kts`.)
 
+## Backend
+
+```bash
+cp .env.example .env                                   # fill in keys later; DATABASE_URL matches compose
+docker compose -f backend/docker-compose.yml up -d     # PostgreSQL 17 + pgvector 0.8.6 on :5432
+./gradlew :backend:run -Poperator.skipAndroid=true     # http://localhost:8080
+curl -s localhost:8080/health                          # 200 "ok" with pgvector version; 503 "degraded" if the DB is down
+```
+
+Flyway runs the migrations under `backend/src/main/resources/db/migration` at startup
+(Milestone 4 only enables the `vector` extension; the memory schema is Milestone 5).
+Configuration comes from real environment variables first, then `.env`
+(`OPERATOR_ENV_FILE` to point elsewhere). `/health` shows a redacted view of it.
+
 ## Testing
 
 - `:core` unit tests: JUnit 5 + kotlinx-coroutines-test + Turbine. Run with
   `./gradlew :core:test`.
+- `:backend` tests: JUnit 5 + Ktor test host with a fake database (`./gradlew :backend:test`).
 - `:app` unit tests: JUnit 4 (`./gradlew :app:testDebugUnitTest`).
-- CI: `.github/workflows/android.yml` runs core tests, app unit tests, and `assembleDebug`
-  on every push, and uploads the debug APK as an artifact.
+- CI: `.github/workflows/android.yml` runs core and backend tests, app unit tests, and
+  `assembleDebug` on every push, uploads the debug APK, and in a second job boots the backend
+  against a real pgvector PostgreSQL service container and asserts `/health` is `ok`.
 - Device verification steps for the current milestone are in `CURRENT_STATUS.md`.
 
 ## Milestone 1 walk-through
@@ -156,7 +173,7 @@ Highlights:
 ## Roadmap
 
 0. Project skeleton ✅  1. Phone audio loopback ✅  2. Bluetooth audio diagnostics ✅
-3. Meta device access ✅ (1–3 pending device check)  4. Backend skeleton
+3. Meta device access ✅ (1–3 pending device check)  4. Backend skeleton ✅
 5. Memory database v1  6. Basic text AI (OpenRouter)  7. Memory-aware text AI
 8. Push to talk  9. ElevenLabs voice  10. Glasses audio  11. Rolling transcription
 12. Response decision engine  13. Active Operator  14. Feedback learning
