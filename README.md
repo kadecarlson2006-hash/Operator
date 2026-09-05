@@ -7,7 +7,7 @@ it whispers something useful, corrective, or funny.
 
 > Silence is the default. `NO_RESPONSE` is the most common outcome by design.
 
-**Status:** Milestones 0–5 implemented; see [CURRENT_STATUS.md](CURRENT_STATUS.md) and [docs/META_GLASSES.md](docs/META_GLASSES.md).
+**Status:** Milestones 0–6 implemented; see [CURRENT_STATUS.md](CURRENT_STATUS.md) and [docs/META_GLASSES.md](docs/META_GLASSES.md).
 
 ## Hardware target
 
@@ -90,6 +90,22 @@ curl -s localhost:8080/health                          # 200 "ok" with pgvector 
 Flyway runs the migrations under `backend/src/main/resources/db/migration` at startup
 (V1 enables `vector`, V2 creates the memory schema). Without `DATABASE_URL` the backend still
 runs with an in-memory store and says so in `/health` (`memoryBackend`).
+
+### Text AI (Milestone 6)
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/ai/respond` `{prompt, tier?, maxOutputTokens?, sessionId?, promptVersion?}` | Ask Operator. Returns text, model, tier, routing reason, prompt version, latency, tokens, reported cost. |
+| `GET` | `/usage` | Rolling token, latency, and cost counters by day, month, and model. |
+
+The phone never holds a provider key: it posts a prompt and renders the answer. Tier selection
+lives in `ModelRouter` (ADR-022) and model IDs come from configuration. The personality prompt is
+a versioned file under `operator-prompts/system/` (ADR-023) and the version used is returned with
+every answer.
+
+In the app, the **Ask Operator** panel needs `OPERATOR_BACKEND_URL` in `local.properties`
+(`http://10.0.2.2:8080` from the emulator, `http://<laptop-ip>:8080` from a phone; debug builds
+allow cleartext HTTP, release builds do not).
 
 ### Memory API (Milestone 5)
 
@@ -195,7 +211,7 @@ Highlights:
 
 0. Project skeleton ✅  1. Phone audio loopback ✅  2. Bluetooth audio diagnostics ✅
 3. Meta device access ✅ (1–3 pending device check)  4. Backend skeleton ✅
-5. Memory database v1 ✅  6. Basic text AI (OpenRouter)  7. Memory-aware text AI
+5. Memory database v1 ✅  6. Basic text AI ✅  7. Memory-aware text AI
 8. Push to talk  9. ElevenLabs voice  10. Glasses audio  11. Rolling transcription
 12. Response decision engine  13. Active Operator  14. Feedback learning
 15. BLE ring / remote  16. Camera context  17. Work integrations

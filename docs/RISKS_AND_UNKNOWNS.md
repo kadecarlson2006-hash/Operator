@@ -11,7 +11,7 @@ Update this file whenever a test answers a question.
 | 4 | Glasses battery impact of continuous audio | UNKNOWN TO VERIFY | Measure over 1 h sessions in Milestone 10. |
 | 5 | Android background service restrictions (foreground service type `microphone`, Doze) | UNKNOWN TO VERIFY | Milestone 11. Continuous capture needs a foreground service with `FOREGROUND_SERVICE_MICROPHONE`; Android 14+ restricts starting mic FGS from background. |
 | 6 | Ambient transcription cost | UNKNOWN TO VERIFY | Local VAD before cloud; UsageTracker in Milestone 8+. |
-| 7 | OpenRouter latency (first token) | UNKNOWN TO VERIFY | Measure in Milestone 6 with the latency timeline. |
+| 7 | OpenRouter latency (first token) | UNKNOWN TO VERIFY | Measurement now exists on both sides: the backend reports model latency and the phone reports round trip. Needs a real key and one live call to produce numbers. |
 | 8 | ElevenLabs latency (first audio) and streaming support | UNKNOWN TO VERIFY | Milestone 9. Check current official docs for streaming/websocket endpoints before implementing. |
 | 9 | Voice interruption behaviour (barge-in while Operator speaks) | UNKNOWN TO VERIFY | Milestone 9/11. |
 | 10 | BLE ring compatibility (HID vs custom GATT) | UNKNOWN TO VERIFY | Milestone 15. Design around generic Android HID first. |
@@ -31,3 +31,6 @@ Update this file whenever a test answers a question.
 | 24 | `/health` exposing anything sensitive | MITIGATED | Redacted config only (last four characters of keys, JDBC URL without credentials); unit test asserts raw secrets never appear in the body. |
 | 25 | pgvector column is dimension-agnostic, so no ANN index yet; similarity search is a sequential scan | ACCEPTED (v1) | Fine for personal-scale memory counts; add `vector(N)` + HNSW migration once the embedding model (Milestone 7) fixes N. |
 | 26 | Text search is ILIKE only | ACCEPTED (v1) | GIN tsvector index already exists; Milestone 7 combines lexical + semantic + structured filters. |
+| 27 | OpenRouter wire format was verified against their published SDK, not the hosted reference | UNKNOWN TO VERIFY | `openrouter.ai` is blocked by the build sandbox's egress proxy, so the request/response/error shapes in `OpenRouterApi.kt` come from `@openrouter/ai-sdk-provider` 3.0.0 (OpenRouter's own package). Cross-check against the hosted docs from a workstation, and confirm with one live call. |
+| 28 | No live model call has been made yet | UNKNOWN TO VERIFY | Everything is exercised with a mock HTTP engine. The first real call needs `OPENROUTER_API_KEY` and `OPERATOR_FAST_MODEL_ID` in the backend `.env`. |
+| 29 | The Android module has not compiled since the Ktor client was added | UNKNOWN TO VERIFY | No Android SDK in the authoring sandbox; the CI build job decides. |
