@@ -52,6 +52,7 @@ private fun OperatorRoot(viewModel: OperatorViewModel, activity: Activity) {
             viewModel.stopAudio()
             // Never leave the microphone open behind the user's back.
             viewModel.stopListening()
+            viewModel.stopSpeaking()
         }
     }
 

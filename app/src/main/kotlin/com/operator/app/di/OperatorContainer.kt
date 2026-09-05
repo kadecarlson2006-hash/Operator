@@ -11,6 +11,7 @@ import com.operator.app.backend.OperatorBackendClient
 import com.operator.app.backend.SpeechController
 import com.operator.app.audio.CommunicationLink
 import com.operator.app.audio.ContinuousMicrophone
+import com.operator.app.audio.GlassesAudioCoordinator
 import com.operator.app.transcription.ListenController
 import com.operator.app.bluetooth.BluetoothStatusMonitor
 import com.operator.app.config.BuildConfigLoader
@@ -96,6 +97,13 @@ class OperatorContainer(app: Application) {
     /** Milestone 8: open microphone, gated by voice-activity detection before anything is sent. */
     private val continuousMicrophone = ContinuousMicrophone(app, audioRouteMonitor, communicationLink)
     val listen = ListenController(continuousMicrophone, backendClient, appScope)
+    val glassesAudio = GlassesAudioCoordinator(
+        listen,
+        speech,
+        appScope,
+        selectionSupplier = { loopback.state.value.selection },
+        audioAllowed = { stateManager.current.let { !it.muted && it.isProcessing } },
+    )
 
     /** Meta Wearables toolkit when compiled in, otherwise an honest no-op (ADR-004 / ADR-013). */
     val glasses: GlassesProvider = GlassesProviderLoader.load(app, appScope)

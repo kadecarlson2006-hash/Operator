@@ -28,20 +28,26 @@ data class SpeechState(
     val busy: Boolean get() = phase == SpeechPhase.CONNECTING || phase == SpeechPhase.PLAYING
 }
 
+interface SpeakingSession {
+    val state: StateFlow<SpeechState>
+    fun speak(text: String): Boolean
+    fun cancel()
+}
+
 class SpeechController(
     private val backend: OperatorSpeechBackend,
     private val player: StreamingSpeechPlayer,
     private val scope: CoroutineScope,
     private val selectionSupplier: () -> RouteSelection,
     private val clock: () -> Long = System::currentTimeMillis,
-) {
+) : SpeakingSession {
     private val _state = MutableStateFlow(SpeechState())
-    val state: StateFlow<SpeechState> = _state.asStateFlow()
+    override val state: StateFlow<SpeechState> = _state.asStateFlow()
     private val generation = AtomicLong()
     private var job: Job? = null
 
     @Synchronized
-    fun speak(text: String): Boolean {
+    override fun speak(text: String): Boolean {
         val spoken = text.trim()
         if (spoken.isEmpty() || _state.value.busy || !backend.speechConfigured) return false
         val requestId = generation.incrementAndGet()
@@ -69,7 +75,7 @@ class SpeechController(
     }
 
     @Synchronized
-    fun cancel() {
+    override fun cancel() {
         generation.incrementAndGet()
         job?.cancel()
         job = null

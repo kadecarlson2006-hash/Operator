@@ -103,9 +103,8 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
                 }
                 if (event == OperatorEvent.EmergencyMuteEngaged) {
                     container.loopback.cancel()
-                    // Muted means not listening: close the microphone, do not merely stop replying.
-                    container.listen.stop()
-                    container.speech.cancel()
+                    // Muted means neither listening nor speaking; pending auto-resume is revoked.
+                    container.glassesAudio.mute()
                 }
             }
         }
@@ -154,14 +153,16 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
             return
         }
         val answer = container.ask.state.value.answer.orEmpty()
-        if (!container.speech.speak(answer)) lastEvent.value = "SPEAK ignored (no answer, muted, busy, or backend unavailable)"
+        if (!container.glassesAudio.speak(answer)) lastEvent.value = "SPEAK ignored (no answer, muted, busy, or backend unavailable)"
     }
-    fun stopSpeaking() = container.speech.cancel()
+    fun stopSpeaking() = container.glassesAudio.stopSpeaking()
 
     // --- Listening (Milestone 8) ---
     /** Uses the same input the audio test selected, so Bluetooth routing is exercised the same way. */
-    fun startListening() = container.listen.start(container.loopback.state.value.selection)
-    fun stopListening() = container.listen.stop()
+    fun startListening() {
+        if (!container.glassesAudio.startListening()) lastEvent.value = "LISTEN ignored (muted, OFF, speaking, or backend unavailable)"
+    }
+    fun stopListening() = container.glassesAudio.stopListening()
     fun clearTranscripts() = container.listen.clearTranscripts()
 
     // --- Glasses (Milestone 3) ---

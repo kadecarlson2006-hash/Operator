@@ -92,6 +92,7 @@ fun OperatorScreen(state: OperatorUiState, actions: OperatorActions) {
             WitPanel(state, actions)
             AskOperatorPanel(state, actions)
             ListenPanel(state, actions)
+            GlassesAudioPanel(state)
             AudioTestPanel(state, actions)
             BluetoothPanel(state, actions)
             GlassesPanel(state, actions)
@@ -334,6 +335,32 @@ private fun AskOperatorPanel(state: OperatorUiState, actions: OperatorActions) {
             Spacer(Modifier.height(10.dp))
             KeyValueRow("Error", it, OperatorColors.Alert)
         }
+    }
+}
+
+@Composable
+private fun GlassesAudioPanel(state: OperatorUiState) {
+    val input = state.loopback.selection.input
+    val output = state.loopback.selection.output
+    val bluetoothInput = input?.isBluetooth == true
+    val bluetoothOutput = output?.isBluetooth == true
+    ConsolePanel("Glasses audio · Milestone 10") {
+        Text(
+            "Meta exposes no audio API. Operator uses the glasses as a standard Android Bluetooth headset.",
+            style = MaterialTheme.typography.bodySmall,
+            color = OperatorColors.CreamDim,
+        )
+        Spacer(Modifier.height(8.dp))
+        KeyValueRow("Selected input", input?.summary ?: "system default", if (bluetoothInput) OperatorColors.Signal else OperatorColors.AmberDim)
+        KeyValueRow("Actual hearing route", state.listen.route ?: "— (start listening)")
+        KeyValueRow("Selected output", output?.summary ?: "system default", if (bluetoothOutput) OperatorColors.Signal else OperatorColors.AmberDim)
+        KeyValueRow("Actual voice route", state.speech.route ?: "— (speak an answer)")
+        KeyValueRow("Duplex policy", "Listening pauses during speech, then resumes")
+        KeyValueRow(
+            "Device check",
+            if (bluetoothInput && bluetoothOutput) "ready — exercise both paths" else "select Bluetooth input and output below",
+            if (bluetoothInput && bluetoothOutput) OperatorColors.Signal else OperatorColors.Amber,
+        )
     }
 }
 

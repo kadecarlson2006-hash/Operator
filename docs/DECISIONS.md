@@ -362,3 +362,14 @@ bidirectional WebSocket endpoint becomes useful only if later work speaks partia
 `pcm_24000` lets `AudioTrack` play the first received chunk without waiting for an MP3 decoder or
 a complete file. Cancellation closes the phone request, backend stream, provider channel, and
 `AudioTrack`. No audio is written to disk.
+
+## ADR-034: Glasses audio is half-duplex at the application boundary
+
+**Status:** Accepted (Milestone 10)
+
+The Ray-Ban microphone and speaker share Android's Bluetooth communication routing. Operator
+therefore pauses active listening before speech playback and resumes it only after playback ends.
+This prevents Operator from transcribing its own voice and avoids concurrent calls competing for
+`AudioManager.setCommunicationDevice`. An explicit listening stop or emergency mute cancels the
+pending resume. The policy sits above the independent hearing and speaking controllers so those
+subsystems remain separately testable and usable with the phone's built-in audio routes.

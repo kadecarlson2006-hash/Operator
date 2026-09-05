@@ -1,10 +1,10 @@
 # CURRENT STATUS — OPERATOR
 
-**Current milestone:** 9 — ElevenLabs voice (implemented on `codex/m10-glasses-audio`)
+**Current milestone:** 10 — Glasses audio (implemented; hardware verification pending)
 
-**`main` contains Milestones 0 through 8; this branch adds Milestone 9.** Milestones 1 to 3 still
-await verification on real hardware, and no live model, transcription, or TTS call has ever been
-made.
+**`main` contains Milestones 0 through 8; this branch adds Milestones 9 and 10.** Milestones 1 to
+3 still await verification on real hardware, and no live model, transcription, or TTS call has
+ever been made.
 
 **Last updated:** 2026-09-05
 
@@ -82,6 +82,12 @@ made.
 
 ## What is implemented but NOT yet verified on a device
 
+- Milestone 10: `GlassesAudioCoordinator` enforces half-duplex use of the shared Bluetooth
+  communication route. If listening was active, speech pauses the microphone and resumes it after
+  playback; explicit stop/mute revokes pending resume. The Glasses Audio panel shows selected and
+  actual hearing/voice routes and whether Bluetooth endpoints are ready for the device check.
+  This cannot establish Ray-Ban route reliability, Meta AI coexistence, or battery impact without
+  the target phone and glasses.
 - Milestones 1–2: audio loopback, route selection, Bluetooth diagnostics (see earlier checklist
   items below).
 - Milestone 3: `:glasses-meta` wraps the Meta Wearables Device Access Toolkit 0.9.0 behind
@@ -129,6 +135,12 @@ registration, and mock testing.
 Milestone 9 (voice): run the mock test suites in CI, configure a test ElevenLabs voice/model,
 ask a typed question, tap SPEAK ANSWER, verify audio begins incrementally on the selected route,
 then verify STOP SPEAKING and emergency mute stop it immediately. Record first-audio latency.
+
+Milestone 10 (glasses audio): select the Ray-Ban Bluetooth input and output, start listening,
+then speak an answer. Confirm the hearing route is the glasses mic, listening pauses during
+speech, the voice route is the glasses speaker, and listening resumes afterward. Repeat while
+music and Meta AI are active, disconnect/reconnect once, and record route changes and battery
+impact over a one-hour session.
 
 Milestone 1 (phone audio): launch → GRANT MICROPHONE → RECORD TEST → PLAY TEST → speech
 understandable → actual devices correct.
