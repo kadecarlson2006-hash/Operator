@@ -21,7 +21,8 @@ github_token=
 MWDAT_APPLICATION_ID=0
 MWDAT_CLIENT_TOKEN=0
 
-# Milestone 4+ (leave empty until the backend exists)
+# Milestone 4+: the Operator backend. Emulator: http://10.0.2.2:8080. Phone on the same Wi-Fi:
+# http://<your-laptop-ip>:8080. Debug builds allow cleartext HTTP; release builds do not.
 OPERATOR_BACKEND_URL=
 
 # Milestone 6+ model routing (IDs are never hard-coded; leave empty until configured)

@@ -5,6 +5,9 @@ import com.operator.backend.db.DatabaseGateway
 import com.operator.backend.db.NoDatabase
 import com.operator.backend.db.PostgresGateway
 import com.operator.backend.health.HealthReporter
+import com.operator.backend.ai.ModelRouter
+import com.operator.backend.ai.PromptLibrary
+import com.operator.backend.ai.aiRoutes
 import com.operator.backend.health.healthRoutes
 import com.operator.backend.memory.DuplicateMemoryException
 import com.operator.backend.memory.EntityNotFoundException
@@ -17,6 +20,9 @@ import com.operator.backend.memory.memoryRoutes
 import io.ktor.serialization.JsonConvertException
 import io.ktor.server.plugins.BadRequestException
 import com.operator.backend.providers.ProviderRegistry
+import com.operator.backend.providers.close
+import com.operator.backend.usage.UsageTracker
+import com.operator.core.ai.AIProvider
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
@@ -30,7 +36,7 @@ import io.ktor.server.routing.routing
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 
-const val BACKEND_VERSION = "0.5.0-m5"
+const val BACKEND_VERSION = "0.6.0-m6"
 
 /** Everything the server needs, built once at startup and replaceable with fakes in tests. */
 class BackendDependencies(
@@ -38,7 +44,13 @@ class BackendDependencies(
     val database: DatabaseGateway,
     val providers: ProviderRegistry,
     val memory: MemoryStore,
+    val usage: UsageTracker = UsageTracker(),
+    val prompts: PromptLibrary = PromptLibrary(),
+    /** Defaults to the configured provider; tests inject a fake. */
+    val ai: AIProvider = providers.ai,
 ) {
+    val modelRouter = ModelRouter(config.operator)
+
     val health = HealthReporter(
         version = BACKEND_VERSION,
         promptVersion = config.promptVersion,
@@ -48,7 +60,10 @@ class BackendDependencies(
         memoryBackend = memory.backendName,
     )
 
-    fun close() = database.close()
+    fun close() {
+        database.close()
+        providers.close()
+    }
 
     companion object {
         private val log = LoggerFactory.getLogger(BackendDependencies::class.java)
@@ -96,5 +111,6 @@ fun Application.operatorModule(deps: BackendDependencies) {
         get("/") { call.respond(mapOf("service" to "operator-backend", "version" to BACKEND_VERSION, "health" to "/health")) }
         healthRoutes(deps.health)
         memoryRoutes(deps.memory, deps.config.demoSeedEnabled)
+        aiRoutes(deps.ai, deps.modelRouter, deps.prompts, deps.usage, deps.config.promptVersion)
     }
 }

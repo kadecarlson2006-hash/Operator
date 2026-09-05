@@ -223,3 +223,35 @@ comfortably as SQL.
 Every table is already keyed by `user_id`; the API pins it to a seeded default user. Adding
 authentication later means resolving the user from the request instead of a constant, not a
 schema change.
+
+## ADR-022: Tier selection is code, model identity is configuration
+
+**Status:** Accepted (Milestone 6)
+
+`ModelRouter` decides FAST, DEEP, or VISION and then resolves that tier to a model ID from
+configuration. No model name appears in Kotlin. An explicit tier from the caller always wins, an
+image forces VISION, a small set of analysis cues or a very long prompt promotes to DEEP, and
+everything else is FAST. The heuristic is deliberately shallow and unit-tested: the decision is
+what needs to be reviewable, and the model behind it must stay swappable per the brief. Tiers
+that are unset fall back to the fast model, and DEEP or VISION also pass the fast model to
+OpenRouter as its `models` fallback list.
+
+## ADR-023: System prompts are versioned files, loaded at runtime
+
+**Status:** Accepted (Milestone 6)
+
+`operator-prompts/system/<version>.txt` holds the personality prompt; `PromptLibrary` loads it by
+version and caches it, and the version used is returned on every answer and recorded per session.
+Nothing about Operator's character lives in Kotlin string literals, so the prompt can be revised
+and A/B compared without a rebuild. A missing version is reported and the call proceeds without a
+system prompt rather than silently substituting an invented one.
+
+## ADR-024: Usage accounting is in-process and bounded, not billing
+
+**Status:** Accepted (Milestone 6) — revisit at Milestone 13
+
+`UsageTracker` keeps a bounded ring of recent calls plus running totals, and `GET /usage` derives
+daily, monthly, per-model, and all-time views from it. It deliberately does not write to the
+database: usage recording sits on the latency path of every spoken interaction, and the brief
+puts latency above cost reporting. Costs appear only when the provider reports them, never
+estimated. Persisting usage and enforcing budgets is a later step, once the shape has settled.

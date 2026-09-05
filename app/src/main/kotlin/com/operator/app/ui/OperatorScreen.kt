@@ -17,6 +17,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -61,6 +63,9 @@ data class OperatorActions(
     val onRefresh: () -> Unit = {},
     val onClearRouteLog: () -> Unit = {},
     val onGlassesAction: (GlassesAction) -> Unit = {},
+    val onAskPromptChange: (String) -> Unit = {},
+    val onAskSend: () -> Unit = {},
+    val onAskClear: () -> Unit = {},
 )
 
 @Composable
@@ -79,6 +84,7 @@ fun OperatorScreen(state: OperatorUiState, actions: OperatorActions) {
             ControlsPanel(state, actions)
             ModePanel(state, actions)
             WitPanel(state, actions)
+            AskOperatorPanel(state, actions)
             AudioTestPanel(state, actions)
             BluetoothPanel(state, actions)
             GlassesPanel(state, actions)
@@ -209,6 +215,80 @@ private fun RouteChips(
             SelectorChip(route.summary.uppercase(), selected = selected?.id == route.id, enabled = enabled) { onSelect(route) }
         }
     }
+}
+
+@Composable
+private fun AskOperatorPanel(state: OperatorUiState, actions: OperatorActions) {
+    val ask = state.ask
+    ConsolePanel("Ask Operator · Milestone 6") {
+        if (state.config.backendUrl.isNullOrBlank()) {
+            Text(
+                "No backend configured. Set OPERATOR_BACKEND_URL in local.properties and rebuild.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = OperatorColors.AmberDim,
+            )
+            Spacer(Modifier.height(8.dp))
+        }
+        OutlinedTextField(
+            value = ask.prompt,
+            onValueChange = actions.onAskPromptChange,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !ask.inFlight,
+            label = { Text("QUESTION", style = MaterialTheme.typography.labelSmall) },
+            placeholder = { Text("Who played the villain in that film?", style = MaterialTheme.typography.bodyMedium) },
+            textStyle = MaterialTheme.typography.bodyMedium,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = OperatorColors.Amber,
+                unfocusedBorderColor = OperatorColors.Outline,
+                focusedTextColor = OperatorColors.Cream,
+                unfocusedTextColor = OperatorColors.Cream,
+                cursorColor = OperatorColors.Amber,
+                focusedLabelColor = OperatorColors.AmberDim,
+                unfocusedLabelColor = OperatorColors.CreamDim,
+            ),
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = actions.onAskSend,
+                enabled = ask.canSend && !state.operator.muted,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = OperatorColors.Amber, contentColor = OperatorColors.Background),
+            ) { Text(if (ask.inFlight) "SENDING…" else "SEND", style = MaterialTheme.typography.labelSmall) }
+            OutlinedButton(onClick = actions.onAskClear, enabled = !ask.inFlight && (ask.answer != null || ask.error != null || ask.prompt.isNotEmpty()), modifier = Modifier.weight(1f)) {
+                Text("CLEAR", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+        if (ask.inFlight) {
+            Spacer(Modifier.height(10.dp))
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = OperatorColors.Amber, trackColor = OperatorColors.Outline)
+        }
+        ask.answer?.let { answer ->
+            Spacer(Modifier.height(12.dp))
+            Text("OPERATOR", style = MaterialTheme.typography.labelSmall, color = OperatorColors.AmberDim)
+            Text(answer, style = MaterialTheme.typography.bodyMedium, color = OperatorColors.Cream, modifier = Modifier.padding(top = 4.dp))
+            Spacer(Modifier.height(10.dp))
+            KeyValueRow("Model", "${ask.model ?: "—"}${ask.upstreamProvider?.let { " · $it" } ?: ""}")
+            KeyValueRow("Tier", "${ask.tier ?: "—"}${ask.routingReason?.let { " ($it)" } ?: ""}")
+            KeyValueRow("Prompt version", ask.promptVersion ?: "— (none loaded)")
+            KeyValueRow("Round trip", ask.roundTripMillis?.let { "$it ms" } ?: "—", latencyColor(ask.roundTripMillis))
+            KeyValueRow("Model latency", ask.modelLatencyMillis?.let { "$it ms" } ?: "—")
+            KeyValueRow("Tokens in/out", "${ask.inputTokens ?: "—"} / ${ask.outputTokens ?: "—"}")
+            ask.costUsd?.let { KeyValueRow("Reported cost", "$%.6f".format(it)) }
+        }
+        ask.error?.let {
+            Spacer(Modifier.height(10.dp))
+            KeyValueRow("Error", it, OperatorColors.Alert)
+        }
+    }
+}
+
+/** Latency targets from the brief: under 1 s ideal, 1–1.5 s good, over 3 s harms conversation. */
+private fun latencyColor(millis: Long?) = when {
+    millis == null -> OperatorColors.Cream
+    millis < 1_000 -> OperatorColors.Signal
+    millis < 3_000 -> OperatorColors.Amber
+    else -> OperatorColors.Alert
 }
 
 @Composable
@@ -417,8 +497,8 @@ private fun DiagnosticsPanel(state: OperatorUiState) {
         KeyValueRow("Muted", if (state.operator.muted) "YES" else "no")
         KeyValueRow("May volunteer", if (state.operator.mayVolunteer) "yes" else "no")
         KeyValueRow("Record test length", "${c.recordTestDurationMillis} ms")
-        KeyValueRow("Backend URL", c.backendUrl ?: "— (Milestone 4)")
-        KeyValueRow("AI provider / model", c.fastModelId ?: "— (Milestone 6)")
+        KeyValueRow("Backend URL", c.backendUrl ?: "— (set OPERATOR_BACKEND_URL)")
+        KeyValueRow("AI model (last answer)", state.ask.model ?: "— (ask something)")
         KeyValueRow("Decision model", c.decisionModelId ?: "— (Milestone 12)")
         KeyValueRow("TTS provider", c.ttsProvider ?: "— (Milestone 8)")
         KeyValueRow("Voice ID", c.elevenLabsVoiceId ?: "— (Milestone 9)")

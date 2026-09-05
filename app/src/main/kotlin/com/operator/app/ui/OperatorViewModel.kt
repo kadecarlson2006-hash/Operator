@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.operator.app.BuildConfig
 import com.operator.app.audio.AudioRoutes
+import com.operator.app.backend.AskState
 import com.operator.app.bluetooth.BluetoothStatus
 import com.operator.app.di.OperatorContainer
 import com.operator.core.audio.AudioLoopbackState
@@ -36,6 +37,8 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
 
     private data class BluetoothSection(val status: BluetoothStatus, val granted: Boolean)
 
+    private data class AiSection(val ask: AskState, val glasses: com.operator.core.glasses.GlassesState)
+
     private val audioSection = combine(
         container.loopback.state,
         container.audioRouteMonitor.routes,
@@ -48,13 +51,15 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
         container.bluetoothPermission.granted,
     ) { status, granted -> BluetoothSection(status, granted) }
 
+    private val aiSection = combine(container.ask.state, container.glasses.state) { ask, glasses -> AiSection(ask, glasses) }
+
     val uiState: StateFlow<OperatorUiState> = combine(
         container.stateManager.state,
         audioSection,
         bluetoothSection,
-        container.glasses.state,
+        aiSection,
         lastEvent,
-    ) { operator, audio, bt, glasses, event ->
+    ) { operator, audio, bt, ai, event ->
         OperatorUiState(
             operator = operator,
             loopback = audio.loopback,
@@ -64,7 +69,8 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
             bluetoothPermissionGranted = bt.granted,
             bluetoothPermissionIsRuntime = container.bluetoothPermission.isRuntimePermission,
             routeEvents = audio.events,
-            glasses = glasses,
+            ask = ai.ask,
+            glasses = ai.glasses,
             glassesActions = container.glasses.actions,
             lastEvent = event,
             config = container.config,
@@ -116,6 +122,13 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
     fun stopAudio() = container.loopback.cancel()
     fun discardClip() = container.loopback.discardClip()
     fun clearRouteLog() = container.routeEventLog.clear()
+
+    // --- Ask Operator (Milestone 6) ---
+    fun setAskPrompt(text: String) = container.ask.setPrompt(text)
+    fun sendAsk() {
+        if (!container.ask.send()) lastEvent.value = "ASK ignored (empty prompt or already in flight)"
+    }
+    fun clearAsk() = container.ask.clear()
 
     // --- Glasses (Milestone 3) ---
     fun runGlassesAction(action: GlassesAction, activity: Any?) {

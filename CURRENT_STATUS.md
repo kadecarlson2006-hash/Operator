@@ -1,10 +1,20 @@
 # CURRENT STATUS — OPERATOR
 
-**Current milestone:** 5 — Memory database v1 (implemented and CI-verified; Milestones 1–3 still await device verification)
+**Current milestone:** 6 — Basic text AI (implemented; backend verified locally, Android and CI not yet verified)
+
+**Branch note:** this work sits on `claude/milestone-6-text-ai`, which is stacked on
+`claude/milestone-5-memory`. Neither is merged: `main` currently ends at Milestone 4.
 
 **Last updated:** 2026-09-05
 
 ## What works (verified)
+
+- Milestone 6 backend: OpenRouter provider (wire format verified against OpenRouter's own
+  published SDK, see risk 27), `ModelRouter` for the FAST/DEEP/VISION tiers, `PromptLibrary`
+  loading versioned personality prompts, `POST /ai/respond`, `GET /usage`, and an in-process
+  `UsageTracker`. 45 backend unit tests pass locally, 23 of them new, including the provider
+  against a mock HTTP engine (success, error envelope on both 4xx and 200, unknown fields,
+  transport failure) and the route (routing, failure mapping, usage counting, no prompt echo).
 
 - Memory database v1: normalized schema (users, organizations, people, projects, memories,
   memory_embeddings on pgvector, memory_events, conversation_sessions), `MemoryStore` with
@@ -21,6 +31,15 @@
 - `:app` and `:glasses-meta` compile (`assembleDebug`, SDK pulled from GitHub Packages with the
   workflow token) and app unit tests pass in GitHub Actions (run #11); debug APK attached to each
   green run as `operator-debug-apk` (about 21 MB with the Meta SDK).
+
+## What is implemented but NOT verified anywhere yet
+
+- Milestone 6 Android: the "Ask Operator" panel (question box, SEND, answer, model, tier, prompt
+  version, round-trip and model latency, token counts) and the backend client behind an
+  `OperatorBackend` interface. The module has not compiled since the Ktor client dependency was
+  added, because the authoring sandbox has no Android SDK. CI has not run on this branch.
+- Milestone 6 end to end: no live model call has been made. It needs `OPENROUTER_API_KEY` and
+  `OPERATOR_FAST_MODEL_ID` in the backend `.env`.
 
 ## What is implemented but NOT yet verified on a device
 
@@ -48,9 +67,10 @@ registration, and mock testing.
 
 ## What does not work / not started
 
-- Backend has no model/TTS/transcription calls yet (Milestones 6/8/9); provider slots report
-  "not configured". No embedding generation or semantic retrieval yet (7). No authentication
-  (single default user, ADR-021).
+- No TTS or transcription yet (Milestones 8/9); those provider slots report "not configured".
+- No embedding generation or semantic retrieval yet (Milestone 7): memories are stored and
+  searchable, but nothing retrieves them into a prompt.
+- No authentication (single default user, ADR-021).
 - Camera streaming/photo (Milestone 16), AI, TTS, transcription, rolling context, decision
   engine, BLE ring, integrations.
 - No launcher icon.
