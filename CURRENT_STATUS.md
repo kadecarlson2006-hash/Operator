@@ -1,9 +1,9 @@
 # CURRENT STATUS — OPERATOR
 
-**Current milestone:** 7 — Memory-aware text AI (implemented; on `claude/milestone-7-memory-aware`)
+**Current milestone:** 7 — Memory-aware text AI (merged to `main`)
 
-**`main` contains Milestones 0 through 6.** Milestones 1 to 3 still await verification on real
-hardware, and Milestone 6 has never made a live model call. Both gaps are listed below.
+**`main` contains Milestones 0 through 7.** Milestones 1 to 3 still await verification on real
+hardware, and Milestones 6 and 7 have never made a live model call. Both gaps are listed below.
 
 **Last updated:** 2026-09-05
 
