@@ -42,7 +42,6 @@ with `read:packages` in `local.properties` as `github_token` (the Meta SDK is on
 Packages), the Meta AI app on the phone with Developer Mode enabled, and the glasses paired.
 
 ```bash
-cd operator
 cp local.properties.example local.properties   # optional: tweak defaults, add sdk.dir
 ```
 
@@ -52,8 +51,6 @@ cp local.properties.example local.properties   # optional: tweak defaults, add s
 ## Build
 
 ```bash
-cd operator
-
 # Core module only — works on any machine with a JDK, no Android SDK needed
 ./gradlew :core:test -Poperator.skipAndroid=true
 
@@ -85,8 +82,8 @@ the comment in `build.gradle.kts`.)
 - `:core` unit tests: JUnit 5 + kotlinx-coroutines-test + Turbine. Run with
   `./gradlew :core:test`.
 - `:app` unit tests: JUnit 4 (`./gradlew :app:testDebugUnitTest`).
-- CI: `.github/workflows/operator-android.yml` runs core tests, app unit tests, and
-  `assembleDebug` on every push touching `operator/`, and uploads the debug APK as an artifact.
+- CI: `.github/workflows/android.yml` runs core tests, app unit tests, and `assembleDebug`
+  on every push, and uploads the debug APK as an artifact.
 - Device verification steps for the current milestone are in `CURRENT_STATUS.md`.
 
 ## Milestone 1 walk-through

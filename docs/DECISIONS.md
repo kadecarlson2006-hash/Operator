@@ -94,14 +94,14 @@ the canonical default, and `ResponseDecision.suppressed(reason)` lets local rule
 model's `shouldSpeak=true`. `SilentDecisionEngine` is the only engine until Milestone 12.
 The state manager also refuses COMMENT NOW while muted or OFF.
 
-## ADR-010: The Operator project lives in `operator/` inside this repository
+## ADR-010: Operator lives in its own private repository
 
-**Status:** Accepted (Milestone 0) — revisit
+**Status:** Superseded on 2026-09-05 (originally: subdirectory of an unrelated docs repo)
 
-This repository previously contained only Syteline IDO documentation. Operator was placed in
-an `operator/` subdirectory so nothing collides with the existing docs, README, or
-`.gitignore`. The GitHub Actions workflow is scoped to `operator/**`. Moving Operator to its
-own repository later is a `git subtree split` away.
+Milestones 0–3 were first developed under `operator/` inside the Syteline IDO documentation
+repository. That mixed an unrelated product into a repo other people can access, so the
+history was extracted with `git subtree split` into this dedicated private repository, with
+the project at the root and CI in `.github/workflows/android.yml`.
 
 ## ADR-011: Bluetooth headset links use `setCommunicationDevice`, never `startBluetoothSco`
 
