@@ -18,7 +18,8 @@ hardware, and no live model or transcription call has ever been made. Both gaps 
   `/audio/transcriptions` at a configurable base URL and `POST /transcribe` takes raw PCM-16.
   On the phone, `ContinuousMicrophone` streams frames and `ListenController` drives
   microphone → detection → utterance → backend → transcript, with a Listen panel that shows the
-  level, the status, and the transcripts it is holding in memory. 44 new tests.
+  level, the status, and the transcripts it is holding in memory. 54 new tests (core 39 to 61,
+  backend 73 to 95, app 8 to 18), all green in CI run #14 along with `assembleDebug`.
 - Milestone 7: memory-aware answering. `MemoryRetrievalEngine` blends semantic, lexical, and
   entity-linked candidates and applies a relevance floor; `MemoryScopePolicy` decides which
   privacy scopes a mode may read; `MemoryWriteEngine` recognises "remember that…" and stores it
