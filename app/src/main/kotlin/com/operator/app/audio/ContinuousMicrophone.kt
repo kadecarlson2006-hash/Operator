@@ -3,7 +3,6 @@ package com.operator.app.audio
 import android.annotation.SuppressLint
 import android.content.Context
 import android.media.AudioDeviceInfo
-import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.util.Log
@@ -18,7 +17,6 @@ import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.Dispatchers
-import kotlin.math.max
 
 /**
  * An open microphone that emits fixed-size PCM-16 frames until the collector stops (Milestone 8).
@@ -74,50 +72,16 @@ class ContinuousMicrophone(
         preferred: AudioRoute?,
         note: String,
     ) {
-        val sampleRate = AudioFormatSpec.SAMPLE_RATE_HZ
-        val minBuffer = AudioRecord.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
-        if (minBuffer <= 0) throw AudioException("AudioRecord.getMinBufferSize failed ($minBuffer)")
-
         val preferredInfo: AudioDeviceInfo? = preferred?.let {
             monitor.findInput(it) ?: throw AudioException("Selected input ${it.summary} is no longer available")
         }
 
-        val record = try {
-            AudioRecord.Builder()
-                .setAudioSource(audioSource)
-                .setAudioFormat(
-                    AudioFormat.Builder()
-                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                        .setSampleRate(sampleRate)
-                        .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
-                        .build(),
-                )
-                .setBufferSizeInBytes(max(minBuffer * 2, 16_384))
-                .build()
-        } catch (e: SecurityException) {
-            throw AudioException("Microphone permission denied by the system", e)
-        } catch (e: IllegalArgumentException) {
-            throw AudioException("Unsupported audio format: ${e.message}", e)
-        } catch (e: UnsupportedOperationException) {
-            throw AudioException("AudioRecord could not be created: ${e.message}", e)
-        }
-
-        if (record.state != AudioRecord.STATE_INITIALIZED) {
-            record.release()
-            throw AudioException("AudioRecord failed to initialize (state=${record.state})")
-        }
-
-        var fullNote = note
-        if (preferredInfo != null && !record.setPreferredDevice(preferredInfo)) {
-            fullNote += " (setPreferredDevice rejected)"
-        }
+        val record = openPcmRecord(audioSource)
+        val fullNote = note + record.preferDevice(preferredInfo)
 
         actualRoute = null
         try {
-            record.startRecording()
-            if (record.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
-                throw AudioException("Microphone is busy or unavailable (recordingState=${record.recordingState})")
-            }
+            record.startCaptureOrThrow()
             monitor.log("Listening [$fullNote]")
             while (true) {
                 currentCoroutineContext().ensureActive()

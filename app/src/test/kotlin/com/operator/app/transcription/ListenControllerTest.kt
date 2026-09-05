@@ -136,7 +136,7 @@ class ListenControllerTest {
         assertFalse(controller.listening)
         assertEquals(ListenStatus.IDLE, controller.state.value.status)
         assertEquals(0f, controller.state.value.level, 0.0001f)
-        assertEquals(0, backend.uploads.size, "audio cut short by STOP must not be uploaded afterwards")
+        assertEquals("audio cut short by STOP must not be uploaded afterwards", 0, backend.uploads.size)
         mic.frames.close()
     }
 
@@ -186,7 +186,7 @@ class ListenControllerTest {
 
         assertEquals(ListenStatus.ERROR, controller.state.value.status)
         assertFalse(controller.listening)
-        assertEquals(0, mic.listenCalls, "the microphone must not open with nowhere to send audio")
+        assertEquals("the microphone must not open with nowhere to send audio", 0, mic.listenCalls)
     }
 
     @Test

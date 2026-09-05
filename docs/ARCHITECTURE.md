@@ -38,7 +38,8 @@ operator/
         ├── permissions   MicrophonePermission, BluetoothPermission
         ├── audio         AudioRouteMapper, AudioRouteMonitor, CommunicationLink,
         │                 AndroidAudioRecorder, AndroidAudioPlayer, AudioSubsystemReporter,
-        │                 MicrophoneSource port + ContinuousMicrophone (Milestone 8)
+        │                 MicrophoneSource port + ContinuousMicrophone (Milestone 8),
+        │                 PcmCapture (AudioRecord setup shared by both capture paths)
         ├── transcription ListenController — mic → VAD → utterance → backend (Milestone 8)
         ├── bluetooth     BluetoothStatusMonitor (adapter state, paired devices)
         ├── glasses       GlassesProviderLoader (reflective factory lookup), GlassesSubsystemReporter
