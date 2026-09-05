@@ -17,7 +17,22 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 @Serializable
-data class AskRequest(val prompt: String, val tier: String? = null, val sessionId: String? = null)
+data class AskRequest(
+    val prompt: String,
+    val tier: String? = null,
+    val sessionId: String? = null,
+    /** Operator mode decides which memory scopes the backend may read (ADR-026). */
+    val mode: String? = null,
+    val wit: String? = null,
+)
+
+/** A memory the backend put in front of the model, with the reason it chose it. */
+@Serializable
+data class UsedMemory(val id: String, val type: String, val content: String, val confidence: Float = 0f, val why: String = "")
+
+/** Present when the request was an explicit "remember that…" command. */
+@Serializable
+data class MemoryWritten(val id: String, val type: String, val content: String, val updatedExisting: Boolean = false, val embedded: Boolean = false)
 
 @Serializable
 data class AskResponse(
@@ -31,6 +46,11 @@ data class AskResponse(
     val outputTokens: Int? = null,
     val costUsd: Double? = null,
     val upstreamProvider: String? = null,
+    val memoriesUsed: List<UsedMemory> = emptyList(),
+    val memoryWritten: MemoryWritten? = null,
+    val retrievalMillis: Long? = null,
+    val semanticRetrieval: Boolean = false,
+    val retrievalNote: String? = null,
 )
 
 /** A failed backend call, already phrased for the user. */
@@ -42,7 +62,7 @@ class BackendException(message: String) : Exception(message)
  */
 interface OperatorBackend {
     val configured: Boolean
-    suspend fun ask(prompt: String, tier: String? = null, sessionId: String? = null): AskResponse
+    suspend fun ask(prompt: String, tier: String? = null, sessionId: String? = null, mode: String? = null, wit: String? = null): AskResponse
     fun close() = Unit
 }
 
@@ -60,13 +80,13 @@ class OperatorBackendClient(private val baseUrl: String?) : OperatorBackend {
 
     override val configured: Boolean get() = !baseUrl.isNullOrBlank()
 
-    override suspend fun ask(prompt: String, tier: String?, sessionId: String?): AskResponse {
+    override suspend fun ask(prompt: String, tier: String?, sessionId: String?, mode: String?, wit: String?): AskResponse {
         val base = baseUrl?.trimEnd('/')
             ?: throw BackendException("No backend URL configured. Set OPERATOR_BACKEND_URL in local.properties.")
         val response = try {
             client.post("$base/ai/respond") {
                 contentType(ContentType.Application.Json)
-                setBody(AskRequest(prompt, tier, sessionId))
+                setBody(AskRequest(prompt, tier, sessionId, mode, wit))
             }
         } catch (e: Exception) {
             Log.w(TAG, "Backend unreachable", e)

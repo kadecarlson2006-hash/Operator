@@ -1,6 +1,6 @@
 # CURRENT STATUS — OPERATOR
 
-**Current milestone:** 6 — Basic text AI (implemented and CI-verified; merged to `main`)
+**Current milestone:** 7 — Memory-aware text AI (implemented; on `claude/milestone-7-memory-aware`)
 
 **`main` contains Milestones 0 through 6.** Milestones 1 to 3 still await verification on real
 hardware, and Milestone 6 has never made a live model call. Both gaps are listed below.
@@ -8,6 +8,14 @@ hardware, and Milestone 6 has never made a live model call. Both gaps are listed
 **Last updated:** 2026-09-05
 
 ## What works (verified)
+
+- Milestone 7: memory-aware answering. `MemoryRetrievalEngine` blends semantic, lexical, and
+  entity-linked candidates and applies a relevance floor; `MemoryScopePolicy` decides which
+  privacy scopes a mode may read; `MemoryWriteEngine` recognises "remember that…" and stores it
+  without a model call; `ContextAssembler` builds the runtime block and labels memories as memory
+  rather than live data. 73 backend tests pass, including the brief's acceptance scenario end to
+  end over HTTP: storing "Chris handles the west" and then answering "Who handles the west?" with
+  that memory in front of the model.
 
 - Milestone 6: OpenRouter provider (wire format verified against OpenRouter's own
   published SDK, see risk 27), `ModelRouter` for the FAST/DEEP/VISION tiers, `PromptLibrary`
@@ -41,6 +49,9 @@ hardware, and Milestone 6 has never made a live model call. Both gaps are listed
   HTTP engine. To try it for real, put `OPENROUTER_API_KEY` and `OPERATOR_FAST_MODEL_ID` in the
   backend `.env`, `OPERATOR_BACKEND_URL` in the app's `local.properties`, then use the Ask
   Operator panel. Risks 27 and 28.
+- Semantic retrieval has never run against a real embedding model. Set
+  `OPERATOR_EMBEDDING_MODEL_ID` alongside the OpenRouter key to enable it; without it retrieval is
+  lexical and structured only, which is a supported mode rather than a failure. Risks 30 to 32.
 
 ## What is implemented but NOT yet verified on a device
 
@@ -69,8 +80,8 @@ registration, and mock testing.
 ## What does not work / not started
 
 - No TTS or transcription yet (Milestones 8/9); those provider slots report "not configured".
-- No embedding generation or semantic retrieval yet (Milestone 7): memories are stored and
-  searchable, but nothing retrieves them into a prompt.
+- Ambient retrieval is not wired: retrieval runs for typed questions only, since there is no
+  rolling transcript yet (Milestone 11).
 - No authentication (single default user, ADR-021).
 - Camera streaming/photo (Milestone 16), AI, TTS, transcription, rolling context, decision
   engine, BLE ring, integrations.

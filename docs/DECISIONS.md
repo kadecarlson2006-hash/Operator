@@ -255,3 +255,53 @@ daily, monthly, per-model, and all-time views from it. It deliberately does not 
 database: usage recording sits on the latency path of every spoken interaction, and the brief
 puts latency above cost reporting. Costs appear only when the provider reports them, never
 estimated. Persisting usage and enforcing budgets is a later step, once the shape has settled.
+
+## ADR-025: Retrieval is hybrid, ranked, and floored
+
+**Status:** Accepted (Milestone 7)
+
+Memory retrieval gathers candidates from three cheap sources and then ranks them: semantic
+neighbours from pgvector, lexical matches on the significant words of the query, and anything
+linked to a person or project the query named. Ranking blends similarity, importance, confidence,
+recency of use, and entity linkage.
+
+Two properties matter more than the exact weights. Retrieval degrades instead of failing: with no
+embedding model, or when the embedding call fails, lexical and structured matching still answer,
+which is why memories written before an embedding model existed remain findable. And a relevance
+floor drops weak candidates entirely, because nearest-neighbour search always returns *something*:
+without a distance ceiling an unrelated question pulls in the closest memory, which is precisely
+how a model ends up inventing a callback. Every returned memory carries the reason it was chosen,
+so the selection can be audited rather than trusted.
+
+Marking retrieved memories as used is a database write, so it happens off the answer's latency
+path in a separate scope.
+
+## ADR-026: Memory scope is decided by mode, and by whether the user asked
+
+**Status:** Accepted (Milestone 7)
+
+Only WORK mode reads WORK-scoped memories, so work facts cannot surface in a social setting.
+PRIVATE memories answer a direct question but are never volunteered from ambient conversation.
+RESTRICTED is never retrieved automatically at all and waits for an explicit unlock that does not
+exist yet. OFF reads nothing. Writing is stricter than reading: nothing is ever written into
+RESTRICTED, and an explicit memory spoken in WORK mode is stored as WORK.
+
+## ADR-027: Explicit memory commands are matched deterministically, not by a model
+
+**Status:** Accepted (Milestone 7)
+
+"Remember that X" is recognised by string matching before any model call. The brief requires
+explicit user commands to be high confidence, and a phrase the user deliberately spoke should not
+be lost to a model's judgement or cost a round trip. Storing a memory therefore takes no model
+call at all. Type inference is a short list of cues; a wrong guess is visible and correctable in
+the memory screen, whereas a model call would add latency and a second way to be wrong. Saying the
+same thing twice reaffirms the existing memory rather than failing or duplicating it.
+
+## ADR-028: Memories are labelled as memory in the prompt
+
+**Status:** Accepted (Milestone 7)
+
+The assembled context marks retrieved memories as things the user said or stored earlier, and
+explicitly not as live data, because the brief forbids presenting one as the other. When nothing
+relevant was found the block says so and tells the model not to invent anything, rather than
+leaving an empty section the model might fill in. Empty sections are omitted entirely.

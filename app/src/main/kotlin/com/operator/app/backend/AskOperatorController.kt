@@ -2,6 +2,8 @@ package com.operator.app.backend
 
 import com.operator.core.diagnostics.LatencyCheckpoint
 import com.operator.core.diagnostics.LatencyTimeline
+import com.operator.core.model.OperatorMode
+import com.operator.core.model.WitLevel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -28,6 +30,13 @@ data class AskState(
     val outputTokens: Int? = null,
     val costUsd: Double? = null,
     val upstreamProvider: String? = null,
+    /** Memories the backend used to answer, with the reason each was chosen (Milestone 7). */
+    val memoriesUsed: List<UsedMemory> = emptyList(),
+    /** Set when the question was an explicit "remember that…" command. */
+    val memoryWritten: MemoryWritten? = null,
+    val retrievalMillis: Long? = null,
+    val semanticRetrieval: Boolean = false,
+    val retrievalNote: String? = null,
     val error: String? = null,
 ) {
     val canSend: Boolean get() = prompt.isNotBlank() && !inFlight
@@ -41,6 +50,8 @@ class AskOperatorController(
     private val client: OperatorBackend,
     private val scope: CoroutineScope,
     private val clock: () -> Long = System::currentTimeMillis,
+    /** Reads the live Operator mode and wit, so the backend applies the right memory scopes. */
+    private val stateSupplier: () -> Pair<OperatorMode, WitLevel> = { OperatorMode.ACTIVE to WitLevel.NORMAL },
 ) {
     private val _state = MutableStateFlow(AskState())
     val state: StateFlow<AskState> = _state.asStateFlow()
@@ -69,7 +80,8 @@ class AskOperatorController(
         lastTimeline = LatencyTimeline().mark(LatencyCheckpoint.AI_REQUEST_STARTED, startedAt)
         job = scope.launch {
             try {
-                val response = client.ask(current.prompt.trim())
+                val (mode, wit) = stateSupplier()
+                val response = client.ask(current.prompt.trim(), mode = mode.name, wit = wit.name)
                 val finishedAt = clock()
                 lastTimeline = lastTimeline.mark(LatencyCheckpoint.AI_FIRST_TOKEN, finishedAt)
                 _state.update {
@@ -86,6 +98,11 @@ class AskOperatorController(
                         outputTokens = response.outputTokens,
                         costUsd = response.costUsd,
                         upstreamProvider = response.upstreamProvider,
+                        memoriesUsed = response.memoriesUsed,
+                        memoryWritten = response.memoryWritten,
+                        retrievalMillis = response.retrievalMillis,
+                        semanticRetrieval = response.semanticRetrieval,
+                        retrievalNote = response.retrievalNote,
                         error = null,
                     )
                 }

@@ -267,6 +267,33 @@ private fun AskOperatorPanel(state: OperatorUiState, actions: OperatorActions) {
             Spacer(Modifier.height(12.dp))
             Text("OPERATOR", style = MaterialTheme.typography.labelSmall, color = OperatorColors.AmberDim)
             Text(answer, style = MaterialTheme.typography.bodyMedium, color = OperatorColors.Cream, modifier = Modifier.padding(top = 4.dp))
+
+            ask.memoryWritten?.let { written ->
+                Spacer(Modifier.height(10.dp))
+                KeyValueRow("Memory stored", "${written.type}${if (written.updatedExisting) " (reaffirmed)" else ""}", OperatorColors.Signal)
+                Text(written.content, style = MaterialTheme.typography.bodySmall, color = OperatorColors.CreamDim, modifier = Modifier.padding(start = 12.dp))
+                KeyValueRow("Embedded", if (written.embedded) "yes" else "no (lexical search only)")
+            }
+
+            if (ask.memoriesUsed.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Text("MEMORIES USED (${ask.memoriesUsed.size})", style = MaterialTheme.typography.labelSmall, color = OperatorColors.AmberDim)
+                ask.memoriesUsed.forEach { memory ->
+                    Text(
+                        "• ${memory.content}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = OperatorColors.Cream,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                    Text(
+                        "${memory.type} · ${memory.why}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = OperatorColors.CreamDim,
+                        modifier = Modifier.padding(start = 12.dp, bottom = 2.dp),
+                    )
+                }
+            }
+
             Spacer(Modifier.height(10.dp))
             KeyValueRow("Model", "${ask.model ?: "—"}${ask.upstreamProvider?.let { " · $it" } ?: ""}")
             KeyValueRow("Tier", "${ask.tier ?: "—"}${ask.routingReason?.let { " ($it)" } ?: ""}")
@@ -274,6 +301,10 @@ private fun AskOperatorPanel(state: OperatorUiState, actions: OperatorActions) {
             KeyValueRow("Round trip", ask.roundTripMillis?.let { "$it ms" } ?: "—", latencyColor(ask.roundTripMillis))
             KeyValueRow("Model latency", ask.modelLatencyMillis?.let { "$it ms" } ?: "—")
             KeyValueRow("Tokens in/out", "${ask.inputTokens ?: "—"} / ${ask.outputTokens ?: "—"}")
+            ask.retrievalMillis?.let {
+                KeyValueRow("Memory retrieval", "$it ms" + if (ask.semanticRetrieval) " · semantic" else " · lexical only")
+            }
+            ask.retrievalNote?.let { KeyValueRow("Retrieval note", it, OperatorColors.AmberDim) }
             ask.costUsd?.let { KeyValueRow("Reported cost", "$%.6f".format(it)) }
         }
         ask.error?.let {
