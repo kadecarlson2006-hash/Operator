@@ -29,3 +29,5 @@ Update this file whenever a test answers a question.
 | 22 | Device type string reported for Ray-Ban Meta Gen 2 (classic vs `META_GLASSES`) and Bluetooth profile (HFP vs LE Audio) | UNKNOWN TO VERIFY | Read off the Glasses panel and the Bluetooth device table. |
 | 23 | Flyway 13 + pgvector migration on a fresh database | VERIFIED (CI) | The CI integration job runs the backend against `pgvector/pgvector:0.8.6-pg17` and `/health` reports the extension version; a workstation `docker compose up` should behave the same. |
 | 24 | `/health` exposing anything sensitive | MITIGATED | Redacted config only (last four characters of keys, JDBC URL without credentials); unit test asserts raw secrets never appear in the body. |
+| 25 | pgvector column is dimension-agnostic, so no ANN index yet; similarity search is a sequential scan | ACCEPTED (v1) | Fine for personal-scale memory counts; add `vector(N)` + HNSW migration once the embedding model (Milestone 7) fixes N. |
+| 26 | Text search is ILIKE only | ACCEPTED (v1) | GIN tsvector index already exists; Milestone 7 combines lexical + semantic + structured filters. |

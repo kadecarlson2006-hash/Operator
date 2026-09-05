@@ -23,6 +23,8 @@ operator/
 │       ├── config        BackendConfig (+ .env loader, redaction, DATABASE_URL → JDBC)
 │       ├── db            DatabaseGateway, PostgresGateway (HikariCP + Flyway), migrations
 │       ├── health        HealthReporter, GET /health
+│       ├── memory        MemoryStore contract, PostgresMemoryStore (JDBC + pgvector),
+│       │                 InMemoryMemoryStore, MemoryRoutes, DemoMemories (Milestone 5)
 │       └── providers     ProviderRegistry — AI/TTS/transcription slots (not configured until M6/8/9)
 ├── glasses-meta/  optional Android library — the only module importing com.meta.wearable.dat.*
 │   └── com.operator.glasses.meta   MetaGlassesManager, MetaGlassesProviderFactory, MetaCapabilities

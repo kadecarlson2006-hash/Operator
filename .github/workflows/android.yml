@@ -91,6 +91,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://operator:operator@localhost:5432/operator
           OPERATOR_BACKEND_PORT: "8080"
+          OPERATOR_DEMO_SEED_ENABLED: "true"
         run: |
           backend/build/install/backend/bin/backend > backend.log 2>&1 &
           for i in $(seq 1 60); do
@@ -106,8 +107,11 @@ jobs:
           assert h["database"]["pgvector"], "pgvector extension not reported"
           assert h["database"]["migrationsApplied"] >= 1, h["database"]
           assert "operator:operator" not in json.dumps(h), "credentials leaked into /health"
-          print("pgvector", h["database"]["pgvector"], "| migrations", h["database"]["migrationsApplied"], "| server", h["database"]["serverVersion"])
+          assert h["memoryBackend"] == "postgresql+pgvector", h["memoryBackend"]
+          print("pgvector", h["database"]["pgvector"], "| migrations", h["database"]["migrationsApplied"], "| server", h["database"]["serverVersion"], "| memory", h["memoryBackend"])
           EOF
+      - name: Memory API end to end (real PostgreSQL + pgvector)
+        run: python3 backend/scripts/memory_api_smoke.py http://localhost:8080
       - name: Backend log
         if: always()
         run: cat backend.log || true

@@ -18,6 +18,7 @@ data class HealthResponse(
     val promptVersion: String,
     val database: DatabaseHealth,
     val providers: ProviderStatus,
+    val memoryBackend: String,
     val config: Map<String, String?>,
 )
 
@@ -27,6 +28,7 @@ class HealthReporter(
     private val database: DatabaseGateway,
     private val providers: ProviderStatus,
     private val redactedConfig: Map<String, String?>,
+    private val memoryBackend: String = "none",
     private val startedAtMillis: Long = System.currentTimeMillis(),
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
@@ -39,6 +41,7 @@ class HealthReporter(
             promptVersion = promptVersion,
             database = db,
             providers = providers,
+            memoryBackend = memoryBackend,
             config = redactedConfig,
         )
     }

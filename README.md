@@ -7,7 +7,7 @@ it whispers something useful, corrective, or funny.
 
 > Silence is the default. `NO_RESPONSE` is the most common outcome by design.
 
-**Status:** Milestones 0–4 implemented; see [CURRENT_STATUS.md](CURRENT_STATUS.md) and [docs/META_GLASSES.md](docs/META_GLASSES.md).
+**Status:** Milestones 0–5 implemented; see [CURRENT_STATUS.md](CURRENT_STATUS.md) and [docs/META_GLASSES.md](docs/META_GLASSES.md).
 
 ## Hardware target
 
@@ -26,7 +26,7 @@ Two Gradle modules today, more later:
 |--------|---------|
 | `:core` | Pure Kotlin/JVM. Domain model (`OperatorMode`, `WitLevel`, `OperatorState`), `OperatorStateManager`, provider contracts (`AIProvider`, `TTSProvider`, `TranscriptionProvider`, `MemoryRepository`), `ResponseDecision`, latency timeline, audio loopback state machine. No Android. |
 | `:glasses-meta` | Optional. The only module that touches the Meta Wearables Device Access Toolkit; implements `GlassesProvider`. Included when a GitHub Packages token is present. |
-| `:backend` | Ktor server (ADR-017). Owns provider credentials, PostgreSQL + pgvector (Flyway migrations), `/health`. Pure JVM. |
+| `:backend` | Ktor server (ADR-017). Owns provider credentials, PostgreSQL + pgvector memory store (Flyway migrations), `/health`, memory REST API. Pure JVM. |
 | `:app` | Android app. Jetpack Compose UI, `AudioRecord`/`AudioTrack` implementations with explicit route selection, Bluetooth communication-link handling, permission handling, diagnostics. |
 
 Full layout and data flow: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
@@ -88,7 +88,26 @@ curl -s localhost:8080/health                          # 200 "ok" with pgvector 
 ```
 
 Flyway runs the migrations under `backend/src/main/resources/db/migration` at startup
-(Milestone 4 only enables the `vector` extension; the memory schema is Milestone 5).
+(V1 enables `vector`, V2 creates the memory schema). Without `DATABASE_URL` the backend still
+runs with an in-memory store and says so in `/health` (`memoryBackend`).
+
+### Memory API (Milestone 5)
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/memory/search?text=&type=&scope=&personId=&projectId=&organizationId=&includeInactive=&includeExpired=&limit=` | Filtered search (importance-ordered) |
+| `POST` | `/memory/search/similar` `{vector, model?, limit?, …}` | pgvector cosine similarity |
+| `POST` | `/memory` | Create (409 on an active duplicate of the same type) |
+| `GET` / `PATCH` / `DELETE` | `/memory/{id}` | Read, partial update (`isActive` disables/enables), hard delete |
+| `POST` | `/memory/{id}/mark-incorrect` `{reason?}` | Confidence 0, inactive, audited |
+| `POST` | `/memory/{id}/touch` | Records a use |
+| `GET` | `/memory/{id}/events` | Provenance / audit trail |
+| `PUT` | `/memory/{id}/embedding` `{model, vector}` | Store or replace an embedding |
+| `GET` / `POST` | `/people`, `/projects`, `/organizations` | Linked entities |
+| `POST` | `/memory/demo-seed` | Fictional demo memories (needs `OPERATOR_DEMO_SEED_ENABLED=true`) |
+
+Schema: `docs/MEMORY_SCHEMA.md`. Smoke test against a running backend:
+`python3 backend/scripts/memory_api_smoke.py http://localhost:8080`.
 Configuration comes from real environment variables first, then `.env`
 (`OPERATOR_ENV_FILE` to point elsewhere). `/health` shows a redacted view of it.
 
@@ -96,7 +115,9 @@ Configuration comes from real environment variables first, then `.env`
 
 - `:core` unit tests: JUnit 5 + kotlinx-coroutines-test + Turbine. Run with
   `./gradlew :core:test`.
-- `:backend` tests: JUnit 5 + Ktor test host with a fake database (`./gradlew :backend:test`).
+- `:backend` tests: JUnit 5 + Ktor test host with the in-memory store and a fake database
+  (`./gradlew :backend:test`); the CI integration job runs `backend/scripts/memory_api_smoke.py`
+  against real PostgreSQL + pgvector.
 - `:app` unit tests: JUnit 4 (`./gradlew :app:testDebugUnitTest`).
 - CI: `.github/workflows/android.yml` runs core and backend tests, app unit tests, and
   `assembleDebug` on every push, uploads the debug APK, and in a second job boots the backend
@@ -174,7 +195,7 @@ Highlights:
 
 0. Project skeleton ✅  1. Phone audio loopback ✅  2. Bluetooth audio diagnostics ✅
 3. Meta device access ✅ (1–3 pending device check)  4. Backend skeleton ✅
-5. Memory database v1  6. Basic text AI (OpenRouter)  7. Memory-aware text AI
+5. Memory database v1 ✅  6. Basic text AI (OpenRouter)  7. Memory-aware text AI
 8. Push to talk  9. ElevenLabs voice  10. Glasses audio  11. Rolling transcription
 12. Response decision engine  13. Active Operator  14. Feedback learning
 15. BLE ring / remote  16. Camera context  17. Work integrations

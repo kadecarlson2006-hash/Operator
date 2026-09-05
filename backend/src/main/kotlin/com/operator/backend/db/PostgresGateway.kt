@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory
  * HikariCP pool + Flyway migrations for PostgreSQL. Milestone 4 only proves connectivity and
  * that pgvector is installed; Milestone 5 adds the memory schema as further migrations.
  */
-class PostgresGateway private constructor(private val dataSource: HikariDataSource, private val migrationsApplied: Int) : DatabaseGateway {
+class PostgresGateway private constructor(val dataSource: HikariDataSource, private val migrationsApplied: Int) : DatabaseGateway {
 
     override suspend fun health(): DatabaseHealth = withContext(Dispatchers.IO) {
         try {
