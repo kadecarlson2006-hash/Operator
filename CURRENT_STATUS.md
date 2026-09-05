@@ -1,9 +1,9 @@
 # CURRENT STATUS — OPERATOR
 
-**Current milestone:** 8 — Hearing: voice-activity detection and transcription
-(implemented; on `claude/milestone-8-transcription`). Milestone 9 (speech out) is with Codex.
+**Current milestone:** 8 — Hearing: voice-activity detection and transcription (merged to
+`main`). Milestone 9 (speech out) is with Codex.
 
-**`main` contains Milestones 0 through 7.** Milestones 1 to 3 still await verification on real
+**`main` contains Milestones 0 through 8.** Milestones 1 to 3 still await verification on real
 hardware, and no live model or transcription call has ever been made. Both gaps are listed below.
 
 **Last updated:** 2026-09-05
