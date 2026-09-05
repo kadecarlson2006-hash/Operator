@@ -18,8 +18,10 @@ class AskOperatorControllerTest {
     private class FakeBackend(private val reply: AskResponse? = null, private val failure: Exception? = null) : OperatorBackend {
         override val configured = true
         var asked: String? = null
-        override suspend fun ask(prompt: String, tier: String?, sessionId: String?): AskResponse {
+        var askedMode: String? = null
+        override suspend fun ask(prompt: String, tier: String?, sessionId: String?, mode: String?, wit: String?): AskResponse {
             asked = prompt
+            askedMode = mode
             delay(50)
             failure?.let { throw it }
             return reply!!
@@ -70,6 +72,19 @@ class AskOperatorControllerTest {
         assertNull(s.answer)
         assertEquals("Backend unreachable at http://x", s.error)
         assertTrue("a failed ask can be retried", c.state.value.canSend)
+    }
+
+    @Test
+    fun `the live operator mode is sent so the backend applies the right memory scopes`() = runTest {
+        val backend = FakeBackend(answer)
+        val c = AskOperatorController(
+            backend, this,
+            stateSupplier = { com.operator.core.model.OperatorMode.WORK to com.operator.core.model.WitLevel.DRY },
+        )
+        c.setPrompt("What does the dashboard show?")
+        c.send()
+        advanceUntilIdle()
+        assertEquals("WORK", backend.askedMode)
     }
 
     @Test

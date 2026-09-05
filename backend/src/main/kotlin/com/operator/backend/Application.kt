@@ -5,7 +5,10 @@ import com.operator.backend.db.DatabaseGateway
 import com.operator.backend.db.NoDatabase
 import com.operator.backend.db.PostgresGateway
 import com.operator.backend.health.HealthReporter
+import com.operator.backend.ai.EmbeddingProvider
 import com.operator.backend.ai.ModelRouter
+import com.operator.backend.ai.NoEmbeddingProvider
+import com.operator.backend.ai.OpenRouterEmbeddingProvider
 import com.operator.backend.ai.PromptLibrary
 import com.operator.backend.ai.aiRoutes
 import com.operator.backend.health.healthRoutes
@@ -13,7 +16,9 @@ import com.operator.backend.memory.DuplicateMemoryException
 import com.operator.backend.memory.EntityNotFoundException
 import com.operator.backend.memory.InMemoryMemoryStore
 import com.operator.backend.memory.MemoryNotFoundException
+import com.operator.backend.memory.MemoryRetrievalEngine
 import com.operator.backend.memory.MemoryStore
+import com.operator.backend.memory.MemoryWriteEngine
 import com.operator.backend.memory.MemoryValidationException
 import com.operator.backend.memory.PostgresMemoryStore
 import com.operator.backend.memory.memoryRoutes
@@ -34,9 +39,13 @@ import io.ktor.server.response.respond
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
 import kotlinx.serialization.json.Json
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import org.slf4j.LoggerFactory
 
-const val BACKEND_VERSION = "0.6.0-m6"
+const val BACKEND_VERSION = "0.7.0-m7"
 
 /** Everything the server needs, built once at startup and replaceable with fakes in tests. */
 class BackendDependencies(
@@ -48,8 +57,14 @@ class BackendDependencies(
     val prompts: PromptLibrary = PromptLibrary(),
     /** Defaults to the configured provider; tests inject a fake. */
     val ai: AIProvider = providers.ai,
+    val embeddings: EmbeddingProvider = NoEmbeddingProvider,
 ) {
     val modelRouter = ModelRouter(config.operator)
+
+    /** Retrieval marks memories as used off the answer's latency path (ADR-025). */
+    private val memoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    val retrieval = MemoryRetrievalEngine(memory, embeddings, touchScope = memoryScope)
+    val writeEngine = MemoryWriteEngine(memory, embeddings)
 
     val health = HealthReporter(
         version = BACKEND_VERSION,
@@ -61,6 +76,8 @@ class BackendDependencies(
     )
 
     fun close() {
+        memoryScope.cancel()
+        (embeddings as? OpenRouterEmbeddingProvider)?.close()
         database.close()
         providers.close()
     }
@@ -80,7 +97,13 @@ class BackendDependencies(
             } ?: NoDatabase
             val memory: MemoryStore = (database as? PostgresGateway)?.let { PostgresMemoryStore(it.dataSource) }
                 ?: InMemoryMemoryStore().also { log.warn("No reachable database: memory store is IN-MEMORY and will not survive a restart") }
-            return BackendDependencies(config, database, ProviderRegistry(config), memory)
+            val embeddings: EmbeddingProvider = if (config.openRouterConfigured && !config.operator.embeddingModelId.isNullOrBlank()) {
+                OpenRouterEmbeddingProvider(config.openRouterApiKey!!, config.operator.embeddingModelId!!)
+            } else {
+                log.info("No embedding model configured; memory retrieval will be lexical and structured only")
+                NoEmbeddingProvider
+            }
+            return BackendDependencies(config, database, ProviderRegistry(config), memory, embeddings = embeddings)
         }
     }
 }
@@ -111,6 +134,6 @@ fun Application.operatorModule(deps: BackendDependencies) {
         get("/") { call.respond(mapOf("service" to "operator-backend", "version" to BACKEND_VERSION, "health" to "/health")) }
         healthRoutes(deps.health)
         memoryRoutes(deps.memory, deps.config.demoSeedEnabled)
-        aiRoutes(deps.ai, deps.modelRouter, deps.prompts, deps.usage, deps.config.promptVersion)
+        aiRoutes(deps.ai, deps.modelRouter, deps.prompts, deps.usage, deps.config.promptVersion, deps.retrieval, deps.writeEngine)
     }
 }

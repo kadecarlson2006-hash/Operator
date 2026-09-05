@@ -77,7 +77,11 @@ class OperatorContainer(app: Application) {
 
     /** Milestone 6: the phone's only route to the models; credentials stay on the backend. */
     val backendClient: OperatorBackend = OperatorBackendClient(config.backendUrl)
-    val ask = AskOperatorController(backendClient, appScope)
+    val ask = AskOperatorController(
+        backendClient,
+        appScope,
+        stateSupplier = { stateManager.current.let { it.mode to it.wit } },
+    )
 
     /** Meta Wearables toolkit when compiled in, otherwise an honest no-op (ADR-004 / ADR-013). */
     val glasses: GlassesProvider = GlassesProviderLoader.load(app, appScope)

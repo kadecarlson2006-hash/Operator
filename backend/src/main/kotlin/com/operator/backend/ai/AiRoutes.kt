@@ -1,8 +1,13 @@
 package com.operator.backend.ai
 
+import com.operator.backend.memory.MemoryRetrievalEngine
+import com.operator.backend.memory.MemoryWriteEngine
+import com.operator.backend.memory.RetrievalTrigger
 import com.operator.backend.usage.UsageTracker
 import com.operator.core.ai.AIProvider
 import com.operator.core.ai.AIRequest
+import com.operator.core.model.OperatorMode
+import com.operator.core.model.WitLevel
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
@@ -21,7 +26,20 @@ data class AskRequest(
     val sessionId: String? = null,
     /** Overrides the configured prompt version for this call (debugging). */
     val promptVersion: String? = null,
+    /** Operator mode, which decides which memory scopes may be read (ADR-026). */
+    val mode: String? = null,
+    val wit: String? = null,
+    /** Set false to answer without touching memory. */
+    val useMemory: Boolean = true,
 )
+
+/** A memory that was put in front of the model, with the reason it was chosen. */
+@Serializable
+data class UsedMemory(val id: String, val type: String, val content: String, val confidence: Float, val why: String)
+
+/** Set when the request was an explicit "remember that…" command instead of a question. */
+@Serializable
+data class MemoryWritten(val id: String, val type: String, val content: String, val updatedExisting: Boolean, val embedded: Boolean)
 
 @Serializable
 data class AskResponse(
@@ -35,6 +53,12 @@ data class AskResponse(
     val outputTokens: Int? = null,
     val costUsd: Double? = null,
     val upstreamProvider: String? = null,
+    /** Memory-aware answering (Milestone 7). */
+    val memoriesUsed: List<UsedMemory> = emptyList(),
+    val memoryWritten: MemoryWritten? = null,
+    val retrievalMillis: Long? = null,
+    val semanticRetrieval: Boolean = false,
+    val retrievalNote: String? = null,
 )
 
 /**
@@ -52,6 +76,8 @@ fun Route.aiRoutes(
     prompts: PromptLibrary,
     usage: UsageTracker,
     defaultPromptVersion: String,
+    retrieval: MemoryRetrievalEngine? = null,
+    writeEngine: MemoryWriteEngine? = null,
 ) {
     val log = LoggerFactory.getLogger("operator-ai")
 
@@ -61,6 +87,51 @@ fun Route.aiRoutes(
             call.respond(HttpStatusCode.BadRequest, mapOf("error" to "prompt must not be blank"))
             return@post
         }
+        val mode = request.mode?.let { raw ->
+            OperatorMode.entries.firstOrNull { it.name.equals(raw, ignoreCase = true) }
+                ?: run {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "mode must be one of ${OperatorMode.entries.joinToString { it.name }}"))
+                    return@post
+                }
+        } ?: OperatorMode.ACTIVE
+        val wit = request.wit?.let { raw ->
+            WitLevel.entries.firstOrNull { it.name.equals(raw, ignoreCase = true) }
+                ?: run {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "wit must be one of ${WitLevel.entries.joinToString { it.name }}"))
+                    return@post
+                }
+        } ?: WitLevel.NORMAL
+
+        // An explicit "remember that…" is stored directly. No model call: the user already said
+        // exactly what to keep, and a round trip would only add latency and a way to get it wrong.
+        if (request.useMemory && writeEngine != null) {
+            val command = writeEngine.detect(request.prompt)
+            if (command != null) {
+                val written = try {
+                    writeEngine.write(command, mode = mode, sourceReference = request.sessionId?.let { "session:$it" })
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.UnprocessableEntity, mapOf("error" to (e.message ?: "cannot write memory in this mode")))
+                    return@post
+                }
+                log.info("Stored explicit memory {} ({})", written.memory.id, written.memory.memoryType)
+                call.respond(
+                    AskResponse(
+                        text = written.confirmation,
+                        model = "none",
+                        tier = "NONE",
+                        routingReason = "explicit memory command, stored without a model call",
+                        promptVersion = null,
+                        latencyMillis = 0,
+                        memoryWritten = MemoryWritten(
+                            id = written.memory.id, type = written.memory.memoryType.name, content = written.memory.content,
+                            updatedExisting = written.updatedExisting, embedded = written.embedded,
+                        ),
+                    ),
+                )
+                return@post
+            }
+        }
+
         val requestedTier = request.tier?.let { raw ->
             ModelTier.entries.firstOrNull { it.name.equals(raw, ignoreCase = true) }
                 ?: run {
@@ -76,6 +147,15 @@ fun Route.aiRoutes(
             return@post
         }
 
+        val retrieved = if (request.useMemory && retrieval != null) {
+            try {
+                retrieval.retrieve(request.prompt, mode = mode, trigger = RetrievalTrigger.DIRECT_REQUEST)
+            } catch (e: Exception) {
+                log.warn("Memory retrieval failed, answering without it: {}", e.message)
+                null
+            }
+        } else null
+
         val promptVersion = request.promptVersion ?: defaultPromptVersion
         val systemPrompt = prompts.load(promptVersion)
         if (systemPrompt == null) log.warn("Prompt version {} unavailable; sending without a system prompt", promptVersion)
@@ -87,7 +167,10 @@ fun Route.aiRoutes(
             provider.generate(
                 AIRequest(
                     modelId = decision.modelId,
-                    systemPrompt = systemPrompt.orEmpty(),
+                    systemPrompt = listOfNotNull(
+                        systemPrompt,
+                        ContextAssembler.build(mode, wit, retrieved, RetrievalTrigger.DIRECT_REQUEST),
+                    ).joinToString("\n\n"),
                     userContent = request.prompt,
                     maxOutputTokens = request.maxOutputTokens,
                 ),
@@ -128,6 +211,12 @@ fun Route.aiRoutes(
                 outputTokens = result.outputTokens,
                 costUsd = cost,
                 upstreamProvider = (provider as? OpenRouterProvider)?.lastProvider,
+                memoriesUsed = retrieved?.memories.orEmpty().map {
+                    UsedMemory(it.memory.id, it.memory.memoryType.name, it.memory.content, it.memory.confidence, it.why)
+                },
+                retrievalMillis = retrieved?.latencyMillis,
+                semanticRetrieval = retrieved?.semanticUsed ?: false,
+                retrievalNote = retrieved?.note,
             ),
         )
     }

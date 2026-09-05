@@ -25,6 +25,8 @@ data class OperatorConfig(
     val deepModelId: String? = null,
     val decisionModelId: String? = null,
     val visionModelId: String? = null,
+    /** Embedding model for semantic memory retrieval (Milestone 7). */
+    val embeddingModelId: String? = null,
 
     // Voice (Milestone 8/9).
     val ttsProvider: String? = null,
@@ -65,6 +67,7 @@ data class OperatorConfig(
                 deepModelId = str(Keys.DEEP_MODEL_ID),
                 decisionModelId = str(Keys.DECISION_MODEL_ID),
                 visionModelId = str(Keys.VISION_MODEL_ID),
+                embeddingModelId = str(Keys.EMBEDDING_MODEL_ID),
                 ttsProvider = str(Keys.TTS_PROVIDER),
                 elevenLabsVoiceId = str(Keys.ELEVENLABS_VOICE_ID),
                 elevenLabsModelId = str(Keys.ELEVENLABS_MODEL_ID),
@@ -85,6 +88,7 @@ data class OperatorConfig(
         const val DEEP_MODEL_ID = "OPERATOR_DEEP_MODEL_ID"
         const val DECISION_MODEL_ID = "OPERATOR_DECISION_MODEL_ID"
         const val VISION_MODEL_ID = "OPERATOR_VISION_MODEL_ID"
+        const val EMBEDDING_MODEL_ID = "OPERATOR_EMBEDDING_MODEL_ID"
         const val TTS_PROVIDER = "OPERATOR_TTS_PROVIDER"
         const val ELEVENLABS_VOICE_ID = "OPERATOR_ELEVENLABS_VOICE_ID"
         const val ELEVENLABS_MODEL_ID = "OPERATOR_ELEVENLABS_MODEL_ID"
