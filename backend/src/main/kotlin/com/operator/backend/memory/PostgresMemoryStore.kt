@@ -197,6 +197,22 @@ class PostgresMemoryStore(private val dataSource: DataSource) : MemoryStore {
         }
     }
 
+    override suspend fun listWithoutEmbeddings(userId: UUID, limit: Int): List<Memory> = tx { c ->
+        require(limit > 0) { "limit must be positive" }
+        c.prepareStatement(
+            """$SELECT_MEMORY
+               WHERE m.user_id = ? AND m.is_active
+                 AND (m.expires_at IS NULL OR m.expires_at > now())
+                 AND NOT EXISTS (SELECT 1 FROM memory_embeddings e WHERE e.memory_id = m.id)
+               ORDER BY m.created_at, m.id
+               LIMIT ?""",
+        ).use { st ->
+            st.setObject(1, userId)
+            st.setInt(2, limit)
+            st.executeQuery().use { rs -> generateSequence { if (rs.next()) rowToMemory(rs) else null }.toList() }
+        }
+    }
+
     // ------------------------------------------------------------ people / projects / organizations
 
     override suspend fun createPerson(userId: UUID, person: NewPerson): Person = tx { c ->

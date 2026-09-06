@@ -2,6 +2,9 @@ package com.operator.backend.memory
 
 import com.operator.core.memory.MemoryType
 import com.operator.core.memory.PrivacyScope
+import com.operator.backend.ai.AIProviderException
+import com.operator.backend.ai.EmbeddingProvider
+import com.operator.backend.ai.NoEmbeddingProvider
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
@@ -27,6 +30,7 @@ data class SeedResponse(val created: Int, val skipped: Int, val people: Int, val
  *
  *   GET    /memory/search?text=&type=&scope=&personId=&projectId=&organizationId=&includeInactive=&includeExpired=&limit=
  *   POST   /memory/search/similar         { vector, model?, limit?, filters… }
+ *   POST   /memory/backfill-embeddings?limit=&batchSize=
  *   POST   /memory                        NewMemory → 201 (409 on active duplicate)
  *   GET    /memory/{id}
  *   PATCH  /memory/{id}                   MemoryUpdate (isActive=false disables, true re-enables)
@@ -38,7 +42,12 @@ data class SeedResponse(val created: Int, val skipped: Int, val people: Int, val
  *   POST   /memory/demo-seed              only when OPERATOR_DEMO_SEED_ENABLED=true
  *   GET/POST /people, /projects, /organizations
  */
-fun Route.memoryRoutes(store: MemoryStore, demoSeedEnabled: Boolean) {
+fun Route.memoryRoutes(
+    store: MemoryStore,
+    demoSeedEnabled: Boolean,
+    embeddings: EmbeddingProvider = NoEmbeddingProvider,
+) {
+    val backfill = EmbeddingBackfillService(store, embeddings)
     route("/memory") {
         get("/search") {
             val q = call.request.queryParameters
@@ -55,6 +64,19 @@ fun Route.memoryRoutes(store: MemoryStore, demoSeedEnabled: Boolean) {
         }
         post("/search/similar") {
             call.respond(store.searchSimilar(DEFAULT_USER_ID, call.receive<SimilaritySearch>()))
+        }
+        post("/backfill-embeddings") {
+            if (!backfill.available) {
+                call.respond(HttpStatusCode.ServiceUnavailable, mapOf("error" to "no embedding model is configured"))
+                return@post
+            }
+            val limit = call.queryInt("limit", EmbeddingBackfillService.DEFAULT_LIMIT)
+            val batchSize = call.queryInt("batchSize", EmbeddingBackfillService.DEFAULT_BATCH_SIZE)
+            try {
+                call.respond(backfill.backfill(DEFAULT_USER_ID, limit, batchSize))
+            } catch (e: AIProviderException) {
+                call.respond(HttpStatusCode.BadGateway, mapOf("error" to (e.message ?: "embedding backfill failed")))
+            }
         }
         post {
             val created = store.create(DEFAULT_USER_ID, call.receive<NewMemory>())
@@ -97,6 +119,11 @@ fun Route.memoryRoutes(store: MemoryStore, demoSeedEnabled: Boolean) {
 }
 
 private fun RoutingCall.memoryId(): UUID = parseUuid(parameters["id"] ?: throw MemoryValidationException("id missing"), "id")
+
+private fun RoutingCall.queryInt(name: String, default: Int): Int =
+    request.queryParameters[name]?.let { value ->
+        value.toIntOrNull() ?: throw MemoryValidationException("$name must be an integer")
+    } ?: default
 
 private inline fun <reified E : Enum<E>> enumOr400(value: String, field: String): E =
     enumValues<E>().firstOrNull { it.name.equals(value, ignoreCase = true) }

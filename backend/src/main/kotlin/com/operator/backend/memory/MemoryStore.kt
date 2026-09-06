@@ -27,6 +27,8 @@ interface MemoryStore {
 
     suspend fun putEmbedding(userId: UUID, id: UUID, embedding: EmbeddingInput): Memory
     suspend fun searchSimilar(userId: UUID, query: SimilaritySearch): List<Memory>
+    /** Active, unexpired memories that do not yet have an embedding, oldest first. */
+    suspend fun listWithoutEmbeddings(userId: UUID, limit: Int): List<Memory>
 
     suspend fun createPerson(userId: UUID, person: NewPerson): Person
     suspend fun listPeople(userId: UUID, includeInactive: Boolean = false): List<Person>

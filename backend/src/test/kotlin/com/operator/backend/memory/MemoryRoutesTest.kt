@@ -1,6 +1,9 @@
 package com.operator.backend.memory
 
 import com.operator.backend.BackendDependencies
+import com.operator.backend.ai.AIProviderException
+import com.operator.backend.ai.EmbeddingProvider
+import com.operator.backend.ai.NoEmbeddingProvider
 import com.operator.backend.config.BackendConfig
 import com.operator.backend.db.DatabaseGateway
 import com.operator.backend.db.DatabaseHealth
@@ -33,9 +36,13 @@ import kotlin.test.assertTrue
 class MemoryRoutesTest {
     private object OkDb : DatabaseGateway { override suspend fun health() = DatabaseHealth(configured = true, reachable = true) }
 
-    private fun ApplicationTestBuilder.setup(demoSeed: Boolean = false): HttpClient {
+    private fun ApplicationTestBuilder.setup(
+        demoSeed: Boolean = false,
+        store: MemoryStore = InMemoryMemoryStore(),
+        embeddings: EmbeddingProvider = NoEmbeddingProvider,
+    ): HttpClient {
         val config = BackendConfig(demoSeedEnabled = demoSeed)
-        application { operatorModule(BackendDependencies(config, OkDb, ProviderRegistry(config), InMemoryMemoryStore())) }
+        application { operatorModule(BackendDependencies(config, OkDb, ProviderRegistry(config), store, embeddings = embeddings)) }
         return createClient { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
     }
 
@@ -95,6 +102,50 @@ class MemoryRoutesTest {
         val arr = Json.parseToJsonElement(hits.bodyAsText()).jsonArray
         assertEquals(b.id, arr[0].jsonObject["id"]!!.jsonPrimitive.content)
         assertTrue(arr[0].jsonObject["distance"]!!.jsonPrimitive.content.toFloat() < arr[1].jsonObject["distance"]!!.jsonPrimitive.content.toFloat())
+    }
+
+    @Test
+    fun `embedding backfill is bounded repeatable and reports remaining work`() = testApplication {
+        val store = InMemoryMemoryStore()
+        val embeddings = FakeEmbeddings()
+        val client = setup(store = store, embeddings = embeddings)
+        repeat(3) { index ->
+            client.post("/memory") {
+                contentType(ContentType.Application.Json)
+                setBody("""{"memoryType":"LONG_TERM_MEMORY","content":"memory $index needs embedding"}""")
+            }
+        }
+
+        val first = client.post("/memory/backfill-embeddings?limit=2&batchSize=1")
+        assertEquals(HttpStatusCode.OK, first.status)
+        val firstBody = first.body<EmbeddingBackfillResponse>()
+        assertEquals(2, firstBody.embedded)
+        assertTrue(firstBody.hasMore)
+
+        val second = client.post("/memory/backfill-embeddings")
+        val secondBody = second.body<EmbeddingBackfillResponse>()
+        assertEquals(1, secondBody.embedded)
+        assertEquals(false, secondBody.hasMore)
+        assertEquals(3, store.search(DEFAULT_USER_ID, MemorySearch()).count { it.hasEmbedding })
+    }
+
+    @Test
+    fun `embedding backfill reports missing configuration`() = testApplication {
+        val unavailable = setup()
+        assertEquals(HttpStatusCode.ServiceUnavailable, unavailable.post("/memory/backfill-embeddings").status)
+    }
+
+    @Test
+    fun `embedding backfill reports validation and provider failures`() = testApplication {
+        val store = InMemoryMemoryStore()
+        store.create(DEFAULT_USER_ID, NewMemory(com.operator.core.memory.MemoryType.LONG_TERM_MEMORY, "needs embedding"))
+        val failing = setup(
+            store = store,
+            embeddings = FakeEmbeddings(failWith = AIProviderException("embedding service down", retryable = true)),
+        )
+        assertEquals(HttpStatusCode.BadGateway, failing.post("/memory/backfill-embeddings").status)
+        assertEquals(HttpStatusCode.BadRequest, failing.post("/memory/backfill-embeddings?limit=0").status)
+        assertEquals(HttpStatusCode.BadRequest, failing.post("/memory/backfill-embeddings?batchSize=abc").status)
     }
 
     @Test

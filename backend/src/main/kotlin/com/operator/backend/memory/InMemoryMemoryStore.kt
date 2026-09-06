@@ -148,6 +148,18 @@ class InMemoryMemoryStore(private val clock: Clock = Clock.systemUTC()) : Memory
             .toList()
     }
 
+    override suspend fun listWithoutEmbeddings(userId: UUID, limit: Int): List<Memory> = lock.withLock {
+        require(limit > 0) { "limit must be positive" }
+        val nowInstant = Instant.now(clock)
+        memories.values.asSequence()
+            .filter { it.userId == userId.toString() && it.isActive }
+            .filter { it.expiresAt == null || Instant.parse(it.expiresAt).isAfter(nowInstant) }
+            .filter { UUID.fromString(it.id) !in embeddings }
+            .sortedWith(compareBy<Memory> { it.createdAt }.thenBy { it.id })
+            .take(limit)
+            .toList()
+    }
+
     override suspend fun createPerson(userId: UUID, person: NewPerson): Person = lock.withLock {
         person.validate()
         val p = Person(UUID.randomUUID().toString(), person.name.trim(), person.aliases, person.relationship, person.organizationId, person.role, person.notes)
