@@ -155,6 +155,10 @@ registration, and mock testing.
 
 ## Next tests
 
+The running order across all of them — setup, keys per stage, what to record, and what to do
+when something is wrong — is in [TESTING.md](TESTING.md). The per-milestone detail below is
+what each stage of that plan expands into.
+
 Milestone 9 (voice): run the mock test suites in CI, configure a test ElevenLabs voice/model,
 ask a typed question, tap SPEAK ANSWER, verify audio begins incrementally on the selected route,
 then verify STOP SPEAKING and emergency mute stop it immediately. Record first-audio latency.

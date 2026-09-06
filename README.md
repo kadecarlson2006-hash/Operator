@@ -7,7 +7,7 @@ it whispers something useful, corrective, or funny.
 
 > Silence is the default. `NO_RESPONSE` is the most common outcome by design.
 
-**Status:** Milestones 0–10 implemented; glasses audio still needs target-device verification. See [CURRENT_STATUS.md](CURRENT_STATUS.md) and [docs/META_GLASSES.md](docs/META_GLASSES.md).
+**Status:** Milestones 0–13 implemented. Nothing has yet run against a live model, transcription, or TTS provider, and Milestones 1–3 still need target-device verification. See [CURRENT_STATUS.md](CURRENT_STATUS.md), [TESTING.md](TESTING.md) and [docs/META_GLASSES.md](docs/META_GLASSES.md).
 
 ## Hardware target
 
@@ -171,6 +171,8 @@ Configuration comes from real environment variables first, then `.env`
   `assembleDebug` on every push, uploads the debug APK, and in a second job boots the backend
   against a real pgvector PostgreSQL service container and asserts `/health` is `ok`.
 - Device verification steps for the current milestone are in `CURRENT_STATUS.md`.
+- The running order for testing the whole system against real providers and real
+  hardware is in [TESTING.md](TESTING.md).
 
 ## Milestone 1 walk-through
 

@@ -6,6 +6,17 @@ local.properties
 *.keystore
 *.jks
 
+# --- Test-session scratch (TESTING.md) ---
+# Request bodies written by hand, and any audio captured while testing. Raw audio is never
+# committed: it is exactly the thing the privacy rules exist to keep off disk.
+ask.json
+recall.json
+remember.json
+say.json
+decide.json
+*.pcm
+*.wav
+
 # --- Gradle / build output ---
 .gradle/
 build/

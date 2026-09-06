@@ -127,8 +127,17 @@ try {
 
         if ($health.providers.ai.configured) {
             Head "First call"
+            # A literal here-string: no escape processing at all, so the quotes below are exactly
+            # what gets printed. The request body goes in a file rather than inline because
+            # Windows PowerShell 5.1 and PowerShell 7 disagree about how embedded double quotes
+            # reach a native executable; a file sidesteps the question entirely.
+            $firstCall = @'
+    Set-Content -Path ask.json -Encoding ascii -Value '{"prompt":"Say hello in one short sentence."}'
+    curl.exe -s -X POST __BASE__/ai/respond -H "Content-Type: application/json" -d "@ask.json"
+'@
             Write-Host "  Ready. Try:" -ForegroundColor Gray
-            Write-Host '    curl.exe -s localhost:8080/ai/respond -H "content-type: application/json" -d "{\"prompt\":\"Say hello in one short sentence.\"}"' -ForegroundColor Gray
+            Write-Host $firstCall.Replace("__BASE__", $BaseUrl) -ForegroundColor Gray
+            Write-Host "  The full running order is in TESTING.md." -ForegroundColor Gray
         }
     }
 
