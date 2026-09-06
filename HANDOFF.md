@@ -229,6 +229,14 @@ times. `-Werror` is on for `:core` and `:backend` only.
 **CI runs backend tests before the app compiles**, so a backend failure masks every Android error
 behind it. A green backend is not evidence the app compiles.
 
+**A green `:core` is not evidence either, and this one bites.** Changing a default in `:core` that
+`:app` consumes will break `:app` tests that no local run can see - this sandbox has no Android
+SDK. Lengthening the voice-activity calibration did exactly that: six `ListenControllerTest` cases
+failed on a value they had hard-coded, and the fix then failed a second time because the constant
+they needed lived in a `private companion object`. **Before changing any `:core` default, grep
+`:app` for callers and for tests that encode the old value.** Where a test has to wait for a
+constant, read it from the code rather than writing the number down again.
+
 **`.env` lives in the repo root** and is found by searching upward from the working directory
 (`gradle :backend:run` starts in `backend/`). The startup line `Loaded .env from ...` says which
 file was read; `No .env found` means the keys are not loaded no matter what the file contains.
