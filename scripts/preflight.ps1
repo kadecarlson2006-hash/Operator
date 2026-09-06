@@ -5,7 +5,7 @@
 .DESCRIPTION
   Run this instead of guessing why nothing happens on the phone. It verifies the local
   configuration, brings up the database, and reports which provider slots are actually
-  configured — reading the backend's own /health rather than re-deriving it here, so it
+  configured - reading the backend's own /health rather than re-deriving it here, so it
   cannot disagree with what the server thinks.
 
   It never prints secrets: /health masks them, and this only reports set/not set.
@@ -14,6 +14,11 @@
   .\scripts\preflight.ps1
   .\scripts\preflight.ps1 -SkipDatabase
 #>
+# ASCII ONLY. Windows PowerShell 5.1 reads a .ps1 without a BOM as ANSI, so a UTF-8 em-dash
+# arrives as three mojibake characters, one of which lands on a quote in code page 1252 and
+# terminates the string it sits in - shifting every argument after it. Pure ASCII is identical
+# in both encodings, which is why this file has no typography in it.
+
 [CmdletBinding()]
 param(
     [string]$BaseUrl = "http://localhost:8080",
@@ -84,7 +89,7 @@ try {
         # Deliberately not Invoke-RestMethod: /health answers 503 when it is degraded (no
         # database, say) while still describing everything. Invoke-RestMethod throws on any
         # non-2xx, which would report a perfectly healthy-but-degraded backend as "not running"
-        # — the exact case anyone without Docker hits first. HttpClient reads the body either
+        # - the exact case anyone without Docker hits first. HttpClient reads the body either
         # way, and works the same on Windows PowerShell 5.1 and PowerShell 7.
         try { Add-Type -AssemblyName System.Net.Http -ErrorAction SilentlyContinue } catch { }
         $client = [System.Net.Http.HttpClient]::new()
@@ -108,11 +113,11 @@ try {
         Ok "Backend $($health.version) is up (status: $($health.status))"
 
         if ($health.database.reachable) {
-            Ok "Database reachable — pgvector $($health.database.pgvector), $($health.database.migrationsApplied) migrations"
+            Ok "Database reachable - pgvector $($health.database.pgvector), $($health.database.migrationsApplied) migrations"
         } elseif ($health.database.configured) {
             Bad "DATABASE_URL is set but unreachable: $($health.database.error)"
         } else {
-            Warn "No database configured — memory is '$($health.memoryBackend)' and will not survive a restart"
+            Warn "No database configured - memory is '$($health.memoryBackend)' and will not survive a restart"
         }
 
         Head "Provider slots"
@@ -123,7 +128,7 @@ try {
         }
         foreach ($slot in "ai", "transcription", "tts") {
             $s = $health.providers.$slot
-            if ($s.configured) { Ok  ("{0,-14} {1} — {2}" -f $slot, $s.provider, $s.detail) }
+            if ($s.configured) { Ok  ("{0,-14} {1} - {2}" -f $slot, $s.provider, $s.detail) }
             else               { Warn ("{0,-14} not configured. Set: {1}" -f $slot, $hints[$slot]) }
         }
 

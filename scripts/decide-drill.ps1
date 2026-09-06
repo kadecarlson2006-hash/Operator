@@ -5,8 +5,8 @@
 
 .DESCRIPTION
   The central question of the project is not whether Operator says clever things. It is
-  whether it stays quiet. This runs the same scenarios every time so two runs — across a
-  prompt change, a model change, a threshold change — can be compared.
+  whether it stays quiet. This runs the same scenarios every time so two runs - across a
+  prompt change, a model change, a threshold change - can be compared.
 
   Scenario groups, in the order they run and why:
 
@@ -15,7 +15,7 @@
               decision interval or the five-minute budget. Safe to run back to back.
     AMBIENT   Uninvited. This is the real test. Each one that reaches the model records a
               decision, so the next ambient call inside MIN_DECISION_INTERVAL_SECONDS is
-              refused as DECIDED_RECENTLY — hence the wait between them.
+              refused as DECIDED_RECENTLY - hence the wait between them.
     INVITED   DIRECT_ADDRESS and COMMENT_NOW bypass the interval and budget entirely (mute
               and OFF still stop them). Run last so they do not disturb ambient timing.
 
@@ -26,6 +26,11 @@
   .\scripts\decide-drill.ps1 -GapSeconds 25
   .\scripts\decide-drill.ps1 -SkipAmbientWaits   # fast, but ambient results become meaningless
 #>
+# ASCII ONLY. Windows PowerShell 5.1 reads a .ps1 without a BOM as ANSI, so a UTF-8 em-dash
+# arrives as three mojibake characters, one of which lands on a quote in code page 1252 and
+# terminates the string it sits in - shifting every argument after it. Pure ASCII is identical
+# in both encodings, which is why this file has no typography in it.
+
 [CmdletBinding()]
 param(
     [string]$BaseUrl = "http://localhost:8080",
@@ -137,12 +142,12 @@ function Run-Group($label, $scenarios, $waitBetween) {
 Write-Host "Stage 6 decision drill against $BaseUrl" -ForegroundColor Cyan
 Write-Host "Silence is the expected outcome. SPOKE on ambient is the thing to judge." -ForegroundColor DarkGray
 
-Run-Group "FREE — refused by local rules, no model call" $free $false
-Run-Group "AMBIENT — uninvited, the real test" $ambient (-not $SkipAmbientWaits)
+Run-Group "FREE - refused by local rules, no model call" $free $false
+Run-Group "AMBIENT - uninvited, the real test" $ambient (-not $SkipAmbientWaits)
 
 # An ambient call immediately after the last one: the interval should refuse it for nothing.
 Write-Host ""
-Write-Host "IMMEDIATE REPEAT — should be refused free as DECIDED_RECENTLY" -ForegroundColor Cyan
+Write-Host "IMMEDIATE REPEAT - should be refused free as DECIDED_RECENTLY" -ForegroundColor Cyan
 $r = Invoke-Decide @{ trigger = "AMBIENT"; transcript = $chitchat; mode = "ACTIVE" }
 if ($r.PSObject.Properties.Name -contains "error") {
     Write-Host ("  [FAIL] {0}" -f $r.error) -ForegroundColor Red
@@ -153,7 +158,7 @@ if ($r.PSObject.Properties.Name -contains "error") {
     $results.Add([PSCustomObject]@{ Group="IMMEDIATE REPEAT"; Scenario="repeat immediately"; Spoke="silent"; Reason=$r.reasonCode; Cost=$cost; Ms=$r.latencyMillis })
 }
 
-Run-Group "INVITED — bypasses the interval and budget" $invited $false
+Run-Group "INVITED - bypasses the interval and budget" $invited $false
 
 # --- Summary ------------------------------------------------------------------------
 
