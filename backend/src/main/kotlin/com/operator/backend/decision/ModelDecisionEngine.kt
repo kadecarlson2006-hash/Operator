@@ -76,6 +76,10 @@ class ModelDecisionEngine(
             ?: config.fastModelId?.takeIf { it.isNotBlank() }
             ?: throw DecisionModelNotConfiguredException()
 
+        // Recorded before the call, not after: a call that fails still cost a round trip, and a
+        // provider that is timing out is exactly when an unbudgeted retry loop would hurt most.
+        policy.recordDecision(startedAt)
+
         val retrieved = retrieval?.let {
             runCatching {
                 it.retrieve(request.recentTranscript, mode = request.mode, trigger = RetrievalTrigger.AMBIENT)

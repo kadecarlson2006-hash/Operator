@@ -78,6 +78,8 @@ class BackendDependencies(
     val conversationPolicy = ConversationPolicy(
         minCommentIntervalSeconds = config.operator.minCommentIntervalSeconds,
         maxCommentsPer5Minutes = config.operator.maxCommentsPer5Minutes,
+        minDecisionIntervalSeconds = config.operator.minDecisionIntervalSeconds,
+        maxDecisionsPer5Minutes = config.operator.maxDecisionsPer5Minutes,
     )
 
     /** Retrieval marks memories as used off the answer's latency path (ADR-025). */
