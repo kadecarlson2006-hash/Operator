@@ -12,6 +12,7 @@ import com.operator.app.backend.AskState
 import com.operator.app.backend.SpeechState
 import com.operator.app.bluetooth.BluetoothStatus
 import com.operator.app.di.OperatorContainer
+import com.operator.app.decision.DecisionState
 import com.operator.app.transcription.ListenState
 import com.operator.app.transcription.TranscriptionService
 import com.operator.core.transcription.Speaker
@@ -49,6 +50,7 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
         val listen: ListenState,
         val transcript: List<TranscriptEntry>,
         val speech: SpeechState,
+        val decision: DecisionState,
     )
 
     private val audioSection = combine(
@@ -68,8 +70,10 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
         container.glasses.state,
         container.listen.state,
         container.transcript.state,
-        container.speech.state,
-    ) { ask, glasses, listen, transcript, speech -> AiSection(ask, glasses, listen, transcript, speech) }
+        combine(container.speech.state, container.decision.state) { speech, decision -> speech to decision },
+    ) { ask, glasses, listen, transcript, voice ->
+        AiSection(ask, glasses, listen, transcript, voice.first, voice.second)
+    }
 
     val uiState: StateFlow<OperatorUiState> = combine(
         container.stateManager.state,
@@ -91,6 +95,7 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
             listen = ai.listen,
             transcript = ai.transcript,
             speech = ai.speech,
+            decision = ai.decision,
             glasses = ai.glasses,
             glassesActions = container.glasses.actions,
             lastEvent = event,
@@ -103,7 +108,7 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
         viewModelScope.launch {
             container.stateManager.events.collect { event ->
                 lastEvent.value = when (event) {
-                    OperatorEvent.CommentNowRequested -> "COMMENT NOW received (decision engine arrives in Milestone 12)"
+                    OperatorEvent.CommentNowRequested -> "COMMENT NOW received"
                     OperatorEvent.EmergencyMuteEngaged -> "EMERGENCY MUTE engaged"
                     OperatorEvent.MuteReleased -> "Mute released"
                     is OperatorEvent.ModeChanged -> "Mode ${event.from.label} → ${event.to.label}"
@@ -123,9 +128,29 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
     // --- Operator controls ---
     fun activate() = container.stateManager.activate()
     fun standby() = container.stateManager.standby()
+    /**
+     * Milestone 12: COMMENT NOW now actually asks. The state manager still refuses while muted or
+     * OFF, and the backend's local rules refuse again — a request is an invitation to speak, not
+     * an instruction to.
+     */
     fun commentNow() {
-        if (!container.stateManager.commentNow()) lastEvent.value = "COMMENT NOW ignored (muted or OFF)"
+        if (!container.stateManager.commentNow()) {
+            lastEvent.value = "COMMENT NOW ignored (muted or OFF)"
+            return
+        }
+        if (!container.decision.request(trigger = "COMMENT_NOW")) {
+            lastEvent.value = "COMMENT NOW ignored (already deciding, or no backend configured)"
+        }
     }
+
+    /** Asks whether the conversation so far is worth commenting on, unprompted. */
+    fun considerCommenting() {
+        if (!container.decision.request(trigger = "AMBIENT")) {
+            lastEvent.value = "DECIDE ignored (already deciding, or no backend configured)"
+        }
+    }
+
+    fun clearDecision() = container.decision.clear()
     fun toggleMute() = container.stateManager.toggleMute()
     fun setMode(mode: OperatorMode) = container.stateManager.setMode(mode)
     fun setWit(wit: WitLevel) = container.stateManager.setWit(wit)

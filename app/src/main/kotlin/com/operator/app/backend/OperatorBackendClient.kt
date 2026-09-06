@@ -74,6 +74,37 @@ data class TranscribeResponse(
     val empty: Boolean = false,
 )
 
+/** What the decision stage decided (Milestone 12). Silence is the ordinary answer. */
+@Serializable
+data class DecideResponse(
+    val shouldSpeak: Boolean = false,
+    val category: String = "NO_RESPONSE",
+    /** A short diagnostic label, never the model's reasoning. */
+    val reasonCode: String? = null,
+    val response: String? = null,
+    val confidence: Float = 0f,
+    val urgency: Float = 0f,
+    val relevance: Float = 0f,
+    /** True when the local rules refused before any model was consulted. */
+    val gatedLocally: Boolean = false,
+    val modelCalled: Boolean = false,
+    val model: String? = null,
+    /** True when the model wanted to speak and the local rules overruled it. */
+    val suppressedAfterModel: Boolean = false,
+    val latencyMillis: Long = 0,
+)
+
+@Serializable
+private data class DecideRequest(
+    val trigger: String,
+    val transcript: List<String> = emptyList(),
+    val mode: String? = null,
+    val wit: String? = null,
+    val recentComments: List<String> = emptyList(),
+    val muted: Boolean = false,
+    val sessionId: String? = null,
+)
+
 /** A failed backend call, already phrased for the user. */
 class BackendException(message: String) : Exception(message)
 
@@ -98,6 +129,17 @@ interface OperatorBackend {
      * latency path.
      */
     suspend fun transcribe(pcm: ByteArray, sampleRateHz: Int, channels: Int = 1, sessionId: String? = null): TranscribeResponse
+
+    /** Asks whether Operator should say anything at all (Milestone 12). */
+    suspend fun decide(
+        trigger: String,
+        transcript: List<String> = emptyList(),
+        mode: String? = null,
+        wit: String? = null,
+        recentComments: List<String> = emptyList(),
+        muted: Boolean = false,
+        sessionId: String? = null,
+    ): DecideResponse
 
     fun close() = Unit
 }
@@ -221,6 +263,38 @@ class OperatorBackendClient(private val baseUrl: String?) : OperatorBackend, Ope
             throw BackendException("Unsupported speech format: ${sampleRate}Hz, $channels channel(s)")
         }
         return BackendSpeechAudioStream(channel, sampleRate, channels)
+    }
+
+    override suspend fun decide(
+        trigger: String,
+        transcript: List<String>,
+        mode: String?,
+        wit: String?,
+        recentComments: List<String>,
+        muted: Boolean,
+        sessionId: String?,
+    ): DecideResponse {
+        val base = baseUrl?.trimEnd('/')
+            ?: throw BackendException("No backend URL configured. Set OPERATOR_BACKEND_URL in local.properties.")
+        val response = try {
+            client.post("$base/decide") {
+                contentType(ContentType.Application.Json)
+                setBody(DecideRequest(trigger, transcript, mode, wit, recentComments, muted, sessionId))
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Backend unreachable", e)
+            throw BackendException("Backend unreachable at $base (${e.message ?: e::class.simpleName})")
+        }
+        val text = response.bodyAsText()
+        if (response.status.value !in 200..299) {
+            val message = runCatching { json.parseToJsonElement(text).jsonObject["error"]?.jsonPrimitive?.content }.getOrNull()
+            throw BackendException("Decision ${response.status.value}: ${message ?: text.take(200)}")
+        }
+        return try {
+            response.body<DecideResponse>()
+        } catch (e: Exception) {
+            throw BackendException("Unreadable decision response: ${e.message}")
+        }
     }
 
     override fun close() { runCatching { client.close() } }

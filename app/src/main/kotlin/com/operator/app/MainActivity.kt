@@ -106,6 +106,8 @@ private fun OperatorRoot(viewModel: OperatorViewModel, activity: Activity) {
             },
             onStopListening = { viewModel.stopListening(activity) },
             onClearTranscripts = viewModel::clearTranscripts,
+            onConsiderCommenting = viewModel::considerCommenting,
+            onClearDecision = viewModel::clearDecision,
         )
     }
 

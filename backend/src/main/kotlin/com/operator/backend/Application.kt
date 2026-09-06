@@ -24,12 +24,15 @@ import com.operator.backend.memory.PostgresMemoryStore
 import com.operator.backend.memory.memoryRoutes
 import io.ktor.serialization.JsonConvertException
 import io.ktor.server.plugins.BadRequestException
+import com.operator.backend.decision.ModelDecisionEngine
+import com.operator.backend.decision.decisionRoutes
 import com.operator.backend.providers.ProviderRegistry
 import com.operator.backend.transcription.transcriptionRoutes
 import com.operator.backend.providers.close
 import com.operator.backend.usage.UsageTracker
 import com.operator.backend.tts.ttsRoutes
 import com.operator.core.ai.AIProvider
+import com.operator.core.decision.ConversationPolicy
 import com.operator.core.transcription.TranscriptionProvider
 import com.operator.core.tts.TTSProvider
 import io.ktor.http.HttpStatusCode
@@ -49,7 +52,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import org.slf4j.LoggerFactory
 
-const val BACKEND_VERSION = "0.9.0-m9"
+const val BACKEND_VERSION = "0.12.0-m12"
 
 /** Everything the server needs, built once at startup and replaceable with fakes in tests. */
 class BackendDependencies(
@@ -67,10 +70,28 @@ class BackendDependencies(
 ) {
     val modelRouter = ModelRouter(config.operator)
 
+    /**
+     * The anti-annoyance rules (Milestone 12). One instance for the process, because the interval
+     * and five-minute cap are only meaningful if every decision is measured against the same
+     * history of when Operator actually spoke.
+     */
+    val conversationPolicy = ConversationPolicy(
+        minCommentIntervalSeconds = config.operator.minCommentIntervalSeconds,
+        maxCommentsPer5Minutes = config.operator.maxCommentsPer5Minutes,
+    )
+
     /** Retrieval marks memories as used off the answer's latency path (ADR-025). */
     private val memoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val retrieval = MemoryRetrievalEngine(memory, embeddings, touchScope = memoryScope)
     val writeEngine = MemoryWriteEngine(memory, embeddings)
+
+    val decisionEngine = ModelDecisionEngine(
+        provider = ai,
+        policy = conversationPolicy,
+        prompts = prompts,
+        config = config.operator,
+        retrieval = retrieval,
+    )
 
     val health = HealthReporter(
         version = BACKEND_VERSION,
@@ -141,6 +162,7 @@ fun Application.operatorModule(deps: BackendDependencies) {
         healthRoutes(deps.health)
         memoryRoutes(deps.memory, deps.config.demoSeedEnabled)
         aiRoutes(deps.ai, deps.modelRouter, deps.prompts, deps.usage, deps.config.promptVersion, deps.retrieval, deps.writeEngine)
+        decisionRoutes(deps.decisionEngine, deps.usage)
         transcriptionRoutes(deps.transcription, deps.usage)
         ttsRoutes(
             deps.tts,

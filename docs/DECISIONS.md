@@ -410,3 +410,48 @@ This prevents Operator from transcribing its own voice and avoids concurrent cal
 `AudioManager.setCommunicationDevice`. An explicit listening stop or emergency mute cancels the
 pending resume. The policy sits above the independent hearing and speaking controllers so those
 subsystems remain separately testable and usable with the phone's built-in audio routes.
+
+## ADR-038: The decision engine is local rules, then a model, then the local rules again
+
+**Status:** Accepted (Milestone 12)
+
+The ordering carries the guarantee. `ConversationPolicy` runs first and can only refuse, so a
+moment in a mode that does not volunteer, too soon after the last comment, or over the
+five-minute cap never becomes a paid model call. It runs again afterwards, because a model
+returning `shouldSpeak = true` is a suggestion and not an instruction (ADR-009): the same rules
+apply confidence and relevance floors, the three-sentence limit, and a repetition check.
+
+An engine that could be talked into speaking by a model would be hoping for silence rather than
+enforcing it. This one cannot: the model chooses only what would be worth saying, never whether
+saying anything is allowed.
+
+## ADR-039: Every decision failure is silence
+
+**Status:** Accepted (Milestone 12)
+
+An unreachable model, an unparseable reply, JSON wrapped in prose, scores out of range, or a
+reply that says to speak but carries no text all produce silence rather than an error. This needs
+no special handling because silence is the expected outcome anyway, and the alternative — an
+assistant that speaks when its judgement failed — is exactly the behaviour the brief forbids.
+
+`POST /decide` therefore returns silence as an ordinary 200. Silence is a decision, not a fault.
+
+## ADR-040: The decision model is a job, not a tier
+
+**Status:** Accepted (Milestone 12)
+
+`OPERATOR_DECISION_MODEL_ID` is read directly rather than added to `ModelTier`. FAST, DEEP and
+VISION are tiers of the same answering path, chosen per request by the router (ADR-022); deciding
+whether to speak is a different job that happens before answering exists. Adding it as a tier
+would also let a caller ask `/ai/respond` for it, which is meaningless. It falls back to the fast
+model when unset.
+
+## ADR-041: The decision stage does not speak
+
+**Status:** Accepted (Milestone 12)
+
+`POST /decide` returns a judgement and stops. Turning it into audio is the caller's job, so the
+judgement stays testable on its own and the phone keeps control of delivery — including the
+half-duplex rules from Milestone 10, which can still refuse a decision that was made while
+Operator was already speaking. A decision to speak is consequently not the same as having
+spoken, and the app records only what actually came out.
