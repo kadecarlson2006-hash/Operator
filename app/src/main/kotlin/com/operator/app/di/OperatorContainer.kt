@@ -5,11 +5,13 @@ import com.operator.app.audio.AndroidAudioPlayer
 import com.operator.app.audio.AndroidAudioRecorder
 import com.operator.app.audio.AudioRouteMonitor
 import com.operator.app.audio.AudioSubsystemReporter
+import com.operator.app.audio.AndroidStreamingSpeechPlayer
 import com.operator.app.backend.AskOperatorController
-import com.operator.app.backend.OperatorBackend
 import com.operator.app.backend.OperatorBackendClient
+import com.operator.app.backend.SpeechController
 import com.operator.app.audio.CommunicationLink
 import com.operator.app.audio.ContinuousMicrophone
+import com.operator.app.audio.GlassesAudioCoordinator
 import com.operator.app.transcription.ListenController
 import com.operator.core.transcription.RollingTranscript
 import com.operator.app.bluetooth.BluetoothStatusMonitor
@@ -86,17 +88,38 @@ class OperatorContainer(app: Application) {
     val transcript = RollingTranscript(windowMillis = config.rollingContextSeconds * 1_000L)
 
     /** Milestone 6: the phone's only route to the models; credentials stay on the backend. */
-    val backendClient: OperatorBackend = OperatorBackendClient(config.backendUrl)
+    val backendClient = OperatorBackendClient(config.backendUrl)
     val ask = AskOperatorController(
         backendClient,
         appScope,
         stateSupplier = { stateManager.current.let { it.mode to it.wit } },
         transcriptSupplier = { transcript.entries().map { "${it.speaker.label}: ${it.text}" } },
     )
+    val speechPlayer = AndroidStreamingSpeechPlayer(app, audioRouteMonitor, communicationLink)
+    val speech = SpeechController(
+        backendClient,
+        speechPlayer,
+        appScope,
+        selectionSupplier = { loopback.state.value.selection },
+    )
 
     /** Milestone 8: open microphone, gated by voice-activity detection before anything is sent. */
     private val continuousMicrophone = ContinuousMicrophone(app, audioRouteMonitor, communicationLink)
     val listen = ListenController(continuousMicrophone, backendClient, appScope, transcript)
+
+    /**
+     * Milestone 10 decides *who holds the microphone*; Milestone 11's TranscriptionService keeps
+     * the process in the foreground so it can be held at all. Both are needed: the coordinator
+     * pauses capture while Operator speaks, and the service is what lets capture survive the
+     * screen going off. The service therefore drives listening through this, never around it.
+     */
+    val glassesAudio = GlassesAudioCoordinator(
+        listen,
+        speech,
+        appScope,
+        selectionSupplier = { loopback.state.value.selection },
+        audioAllowed = { stateManager.current.let { !it.muted && it.isProcessing } },
+    )
 
     /** Meta Wearables toolkit when compiled in, otherwise an honest no-op (ADR-004 / ADR-013). */
     val glasses: GlassesProvider = GlassesProviderLoader.load(app, appScope)
@@ -137,6 +160,11 @@ class OperatorContainer(app: Application) {
                 )
             }
             .launchIn(appScope)
+        stateManager.updateSubsystem(
+            Subsystem.VOICE,
+            if (backendClient.speechConfigured) SubsystemStatus(SubsystemState.READY, "ElevenLabs via backend")
+            else SubsystemStatus(SubsystemState.NOT_CONFIGURED, "Set OPERATOR_BACKEND_URL"),
+        )
         // Initialise the vendor SDK at process start, like Meta's samples do in Application.onCreate.
         glasses.initialize()
         // A selected device that disconnects must not silently keep being "selected".

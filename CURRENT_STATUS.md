@@ -1,11 +1,11 @@
 # CURRENT STATUS — OPERATOR
 
-**Current milestone:** 11 — Rolling transcription (merged to `main`). Milestones 9 and 10
-(speech out, glasses audio) are with Codex on `codex/m10-glasses-audio`, green but not yet
-merged: they need the listening control path reconciled with Milestone 11's foreground service.
+**Current milestone:** 9, 10 and 11 integrated — speech out, glasses audio, and rolling
+transcription now share one microphone path.
 
-**`main` contains Milestones 0 through 8, plus 11.** Milestones 1 to 3 still await verification on real
-hardware, and no live model or transcription call has ever been made. Both gaps are listed below.
+**`main` contains Milestones 0 through 11.** Milestones 1 to 3 still await verification on real
+hardware, and no live model, transcription, or TTS call has ever been made. Both gaps are listed
+below.
 
 **Last updated:** 2026-09-05
 
@@ -64,6 +64,14 @@ hardware, and no live model or transcription call has ever been made. Both gaps 
 
 ## What is implemented but NOT yet exercised for real
 
+- ElevenLabs TTS: backend-only credentials, configurable voice/model IDs, streaming
+  `pcm_24000` synthesis through `POST /tts/synthesize`, incremental Android `AudioTrack`
+  playback using the selected output route, STOP SPEAKING, emergency-mute cancellation,
+  first-audio timing, TTS character accounting, and mock-backed provider, route, and controller
+  tests are implemented. Configure `ELEVENLABS_API_KEY`, `OPERATOR_TTS_PROVIDER=elevenlabs`,
+  `OPERATOR_ELEVENLABS_VOICE_ID`, and `OPERATOR_ELEVENLABS_MODEL_ID` on the backend, then use
+  SPEAK ANSWER in the app. Audio streams as raw signed 16-bit little-endian mono PCM at 24 kHz;
+  the API key never enters the APK.
 - Milestone 6 end to end: no live model call has ever been made. Every provider test uses a mock
   HTTP engine. To try it for real, put `OPENROUTER_API_KEY` and `OPERATOR_FAST_MODEL_ID` in the
   backend `.env`, `OPERATOR_BACKEND_URL` in the app's `local.properties`, then use the Ask
@@ -82,6 +90,12 @@ hardware, and no live model or transcription call has ever been made. Both gaps 
 
 ## What is implemented but NOT yet verified on a device
 
+- Milestone 10: `GlassesAudioCoordinator` enforces half-duplex use of the shared Bluetooth
+  communication route. If listening was active, speech pauses the microphone and resumes it after
+  playback; explicit stop/mute revokes pending resume. The Glasses Audio panel shows selected and
+  actual hearing/voice routes and whether Bluetooth endpoints are ready for the device check.
+  This cannot establish Ray-Ban route reliability, Meta AI coexistence, or battery impact without
+  the target phone and glasses.
 - Milestones 1–2: audio loopback, route selection, Bluetooth diagnostics (see earlier checklist
   items below).
 - Milestone 3: `:glasses-meta` wraps the Meta Wearables Device Access Toolkit 0.9.0 behind
@@ -106,7 +120,6 @@ registration, and mock testing.
 
 ## What does not work / not started
 
-- No TTS yet (Milestone 9, with Codex); that provider slot reports "not configured".
 - Transcription does not feed the model: `POST /transcribe` returns a transcript and stops there.
   Turning speech into an answer needs the decision engine and rolling context (Milestones 11-12).
 - Listening is still started by hand: the user presses START LISTENING. It now continues in the
@@ -116,7 +129,7 @@ registration, and mock testing.
   transcript now exists, but nothing decides on its own when to use it — that is the decision
   engine (Milestone 12).
 - No authentication (single default user, ADR-021).
-- Camera streaming/photo (Milestone 16), AI, TTS, transcription, rolling context, decision
+- Camera streaming/photo (Milestone 16), rolling context, decision
   engine, BLE ring, integrations.
 - No launcher icon.
 
@@ -124,8 +137,21 @@ registration, and mock testing.
 
 - Human verification on hardware. Milestone 3 additionally needs: the Meta AI app with
   Developer Mode enabled, the glasses paired to it, and a GitHub token for the build.
+- In this authoring sandbox, Gradle 9.6 cannot close/read its distribution JARs and fails before
+  project configuration with `AccessDeniedException`. Fresh Gradle homes and JDK 17/21 produced
+  the same result, so the combined M8/M9 tests need a normal local or CI run.
 
-## Next test (device checks still owed for Milestones 1–3; Milestone 6 can proceed in parallel)
+## Next tests
+
+Milestone 9 (voice): run the mock test suites in CI, configure a test ElevenLabs voice/model,
+ask a typed question, tap SPEAK ANSWER, verify audio begins incrementally on the selected route,
+then verify STOP SPEAKING and emergency mute stop it immediately. Record first-audio latency.
+
+Milestone 10 (glasses audio): select the Ray-Ban Bluetooth input and output, start listening,
+then speak an answer. Confirm the hearing route is the glasses mic, listening pauses during
+speech, the voice route is the glasses speaker, and listening resumes afterward. Repeat while
+music and Meta AI are active, disconnect/reconnect once, and record route changes and battery
+impact over a one-hour session.
 
 Milestone 1 (phone audio): launch → GRANT MICROPHONE → RECORD TEST → PLAY TEST → speech
 understandable → actual devices correct.

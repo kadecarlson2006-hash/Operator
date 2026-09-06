@@ -59,9 +59,15 @@ private fun OperatorRoot(viewModel: OperatorViewModel, activity: Activity) {
     LifecycleResumeEffect(Unit) {
         viewModel.refreshPermissions()
         // Milestone 11: listening deliberately survives leaving the screen — that is the point of
-        // the foreground service. It is not "behind the user's back": the ongoing notification
-        // says Operator is listening and stops it in one tap. The loopback test still stops.
-        onPauseOrDispose { viewModel.stopAudio() }
+        // the foreground service, and it is not "behind the user's back" because the ongoing
+        // notification says Operator is listening and stops it in one tap.
+        //
+        // Speaking does not get that treatment: it has no notification, so a reply must not carry
+        // on out of sight. The loopback test still stops too.
+        onPauseOrDispose {
+            viewModel.stopAudio()
+            viewModel.stopSpeaking()
+        }
     }
 
     val actions = remember(viewModel, activity, notificationLauncher) {
@@ -86,6 +92,8 @@ private fun OperatorRoot(viewModel: OperatorViewModel, activity: Activity) {
             onAskPromptChange = viewModel::setAskPrompt,
             onAskSend = viewModel::sendAsk,
             onAskClear = viewModel::clearAsk,
+            onSpeakAnswer = viewModel::speakAnswer,
+            onStopSpeaking = viewModel::stopSpeaking,
             onStartListening = {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                     ContextCompat.checkSelfPermission(activity, Manifest.permission.POST_NOTIFICATIONS) !=

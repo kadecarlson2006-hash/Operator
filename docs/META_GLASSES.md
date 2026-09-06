@@ -60,6 +60,14 @@ follows `GlassesState.toSubsystemStatus()`.
 
 Not wired yet: camera stream/photo (Milestone 16), thermal state flow, display (not applicable).
 
+## What Operator wires in Milestone 10
+
+The app treats the glasses as standard Android Bluetooth routes and shows a dedicated Glasses
+Audio diagnostic panel with selected and actual hearing/voice routes. A half-duplex coordinator
+pauses listening while Operator speaks, then resumes only when listening was previously active.
+Emergency mute and explicit listening stop cancel that resume. The Meta SDK remains outside the
+audio path because it exposes no microphone or speaker API.
+
 ## Device test plan (needs the glasses + Meta AI app with Developer Mode)
 
 1. Build with a `github_token` in `local.properties`; Glasses panel shows "SDK present · v0.9.0".

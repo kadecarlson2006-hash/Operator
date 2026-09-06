@@ -7,14 +7,19 @@ import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
+import io.ktor.utils.io.ByteReadChannel
+import io.ktor.utils.io.cancel
+import io.ktor.utils.io.readAvailable
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import java.io.Closeable
 
 @Serializable
 data class AskRequest(
@@ -97,8 +102,19 @@ interface OperatorBackend {
     fun close() = Unit
 }
 
+interface SpeechAudioStream : Closeable {
+    val sampleRateHz: Int
+    val channels: Int
+    suspend fun read(buffer: ByteArray): Int
+}
+
+interface OperatorSpeechBackend {
+    val speechConfigured: Boolean
+    suspend fun openSpeech(text: String): SpeechAudioStream
+}
+
 /** Ktor/OkHttp implementation. */
-class OperatorBackendClient(private val baseUrl: String?) : OperatorBackend {
+class OperatorBackendClient(private val baseUrl: String?) : OperatorBackend, OperatorSpeechBackend {
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = false }
 
@@ -110,6 +126,7 @@ class OperatorBackendClient(private val baseUrl: String?) : OperatorBackend {
     }
 
     override val configured: Boolean get() = !baseUrl.isNullOrBlank()
+    override val speechConfigured: Boolean get() = configured
 
     override suspend fun ask(
         prompt: String,
@@ -171,9 +188,56 @@ class OperatorBackendClient(private val baseUrl: String?) : OperatorBackend {
         }
     }
 
+    override suspend fun openSpeech(text: String): SpeechAudioStream {
+        val base = baseUrl?.trimEnd('/')
+            ?: throw BackendException("No backend URL configured. Set OPERATOR_BACKEND_URL in local.properties.")
+        val response = try {
+            client.post("$base/tts/synthesize") {
+                contentType(ContentType.Application.Json)
+                setBody(SynthesizeRequest(text))
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Speech backend unreachable", e)
+            throw BackendException("Backend unreachable at $base (${e.message ?: e::class.simpleName})")
+        }
+        if (response.status.value !in 200..299) {
+            val body = response.bodyAsText()
+            val message = runCatching { json.parseToJsonElement(body).jsonObject["error"]?.jsonPrimitive?.content }.getOrNull()
+            throw BackendException("Backend ${response.status.value}: ${message ?: body.take(200)}")
+        }
+        val channel = response.bodyAsChannel()
+        val sampleRate = response.headers["X-Operator-Sample-Rate"]?.toIntOrNull()
+            ?: run {
+                channel.cancel()
+                throw BackendException("Speech response did not include a valid sample rate")
+            }
+        val channels = response.headers["X-Operator-Channels"]?.toIntOrNull()
+            ?: run {
+                channel.cancel()
+                throw BackendException("Speech response did not include a valid channel count")
+            }
+        if (sampleRate !in 8_000..48_000 || channels != 1) {
+            channel.cancel()
+            throw BackendException("Unsupported speech format: ${sampleRate}Hz, $channels channel(s)")
+        }
+        return BackendSpeechAudioStream(channel, sampleRate, channels)
+    }
+
     override fun close() { runCatching { client.close() } }
 
     private companion object {
         const val TAG = "OperatorBackendClient"
     }
+}
+
+@Serializable
+private data class SynthesizeRequest(val text: String)
+
+private class BackendSpeechAudioStream(
+    private val channel: ByteReadChannel,
+    override val sampleRateHz: Int,
+    override val channels: Int,
+) : SpeechAudioStream {
+    override suspend fun read(buffer: ByteArray): Int = channel.readAvailable(buffer, 0, buffer.size)
+    override fun close() = channel.cancel()
 }
