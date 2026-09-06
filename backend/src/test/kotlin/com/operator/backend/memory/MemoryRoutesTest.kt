@@ -31,6 +31,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class MemoryRoutesTest {
@@ -170,5 +171,55 @@ class MemoryRoutesTest {
         assertEquals(HttpStatusCode.OK, marked.status)
         assertEquals(0f, marked.body<Memory>().confidence)
         assertEquals(0, Json.parseToJsonElement(client.get("/memory/search?text=handles%20the%20west").bodyAsText()).jsonArray.size)
+    }
+
+    @Test
+    fun `people projects and organizations support patch and delete`() = testApplication {
+        val client = setup()
+        val organization = client.post("/organizations") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"name":"Acme","notes":"customer"}""")
+        }.body<Organization>()
+        val person = client.post("/people") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"name":"Chris","organizationId":"${organization.id}","role":"dispatcher"}""")
+        }.body<Person>()
+        val project = client.post("/projects") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"name":"West rollout","organizationId":"${organization.id}"}""")
+        }.body<Project>()
+
+        val patchedPerson = client.patch("/people/${person.id}") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"name":"Christopher","clearRole":true}""")
+        }
+        assertEquals(HttpStatusCode.OK, patchedPerson.status)
+        val patchedPersonBody = patchedPerson.body<Person>()
+        assertEquals("Christopher", patchedPersonBody.name)
+        assertNull(patchedPersonBody.role)
+
+        val patchedProject = client.patch("/projects/${project.id}") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"status":"DONE","isActive":false}""")
+        }
+        assertEquals("DONE", patchedProject.body<Project>().status)
+        assertEquals(0, client.get("/projects").body<List<Project>>().size)
+        assertEquals(1, client.get("/projects?includeInactive=true").body<List<Project>>().size)
+
+        val patchedOrganization = client.patch("/organizations/${organization.id}") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"aliases":["ACME"],"clearNotes":true}""")
+        }.body<Organization>()
+        assertEquals(listOf("ACME"), patchedOrganization.aliases)
+        assertNull(patchedOrganization.notes)
+
+        assertEquals(HttpStatusCode.BadRequest, client.patch("/people/${person.id}") {
+            contentType(ContentType.Application.Json)
+            setBody("{}")
+        }.status)
+        assertEquals(HttpStatusCode.NoContent, client.delete("/people/${person.id}").status)
+        assertEquals(HttpStatusCode.NoContent, client.delete("/projects/${project.id}").status)
+        assertEquals(HttpStatusCode.NoContent, client.delete("/organizations/${organization.id}").status)
+        assertEquals(HttpStatusCode.NotFound, client.delete("/people/${person.id}").status)
     }
 }

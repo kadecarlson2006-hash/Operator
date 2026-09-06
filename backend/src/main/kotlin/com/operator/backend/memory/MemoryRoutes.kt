@@ -40,7 +40,7 @@ data class SeedResponse(val created: Int, val skipped: Int, val people: Int, val
  *   GET    /memory/{id}/events
  *   PUT    /memory/{id}/embedding         { model, vector }
  *   POST   /memory/demo-seed              only when OPERATOR_DEMO_SEED_ENABLED=true
- *   GET/POST /people, /projects, /organizations
+ *   GET/POST/PATCH/DELETE /people, /projects, /organizations
  */
 fun Route.memoryRoutes(
     store: MemoryStore,
@@ -107,18 +107,34 @@ fun Route.memoryRoutes(
     route("/people") {
         get { call.respond(store.listPeople(DEFAULT_USER_ID, call.request.queryParameters["includeInactive"]?.toBoolean() ?: false)) }
         post { call.respond(HttpStatusCode.Created, store.createPerson(DEFAULT_USER_ID, call.receive<NewPerson>())) }
+        patch("/{id}") { call.respond(store.updatePerson(DEFAULT_USER_ID, call.entityId(), call.receive<PersonUpdate>())) }
+        delete("/{id}") {
+            store.deletePerson(DEFAULT_USER_ID, call.entityId())
+            call.respond(HttpStatusCode.NoContent)
+        }
     }
     route("/projects") {
         get { call.respond(store.listProjects(DEFAULT_USER_ID, call.request.queryParameters["includeInactive"]?.toBoolean() ?: false)) }
         post { call.respond(HttpStatusCode.Created, store.createProject(DEFAULT_USER_ID, call.receive<NewProject>())) }
+        patch("/{id}") { call.respond(store.updateProject(DEFAULT_USER_ID, call.entityId(), call.receive<ProjectUpdate>())) }
+        delete("/{id}") {
+            store.deleteProject(DEFAULT_USER_ID, call.entityId())
+            call.respond(HttpStatusCode.NoContent)
+        }
     }
     route("/organizations") {
         get { call.respond(store.listOrganizations(DEFAULT_USER_ID, call.request.queryParameters["includeInactive"]?.toBoolean() ?: false)) }
         post { call.respond(HttpStatusCode.Created, store.createOrganization(DEFAULT_USER_ID, call.receive<NewOrganization>())) }
+        patch("/{id}") { call.respond(store.updateOrganization(DEFAULT_USER_ID, call.entityId(), call.receive<OrganizationUpdate>())) }
+        delete("/{id}") {
+            store.deleteOrganization(DEFAULT_USER_ID, call.entityId())
+            call.respond(HttpStatusCode.NoContent)
+        }
     }
 }
 
 private fun RoutingCall.memoryId(): UUID = parseUuid(parameters["id"] ?: throw MemoryValidationException("id missing"), "id")
+private fun RoutingCall.entityId(): UUID = parseUuid(parameters["id"] ?: throw MemoryValidationException("id missing"), "id")
 
 private fun RoutingCall.queryInt(name: String, default: Int): Int =
     request.queryParameters[name]?.let { value ->

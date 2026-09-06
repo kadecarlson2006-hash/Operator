@@ -45,9 +45,9 @@ class PostgresMemoryStore(private val dataSource: DataSource) : MemoryStore {
 
     override suspend fun create(userId: UUID, memory: NewMemory): Memory = tx { c ->
         memory.validate()
-        memory.personId?.let { requireEntity(c, "people", "person", it) }
-        memory.projectId?.let { requireEntity(c, "projects", "project", it) }
-        memory.organizationId?.let { requireEntity(c, "organizations", "organization", it) }
+        memory.personId?.let { requireEntity(c, userId, "people", "person", it) }
+        memory.projectId?.let { requireEntity(c, userId, "projects", "project", it) }
+        memory.organizationId?.let { requireEntity(c, userId, "organizations", "organization", it) }
         c.prepareStatement(
             "SELECT id FROM memories WHERE user_id = ? AND is_active AND memory_type = ? AND lower(regexp_replace(btrim(content), '\\s+', ' ', 'g')) = ? LIMIT 1",
         ).use { st ->
@@ -106,9 +106,9 @@ class PostgresMemoryStore(private val dataSource: DataSource) : MemoryStore {
         update.importance?.let { sets += "importance = ?"; args += it }
         update.confidence?.let { sets += "confidence = ?"; args += it }
         if (update.clearExpiry) sets += "expires_at = NULL" else update.expiresAt?.let { sets += "expires_at = ?"; args += Timestamp.from(Instant.parse(it)) }
-        update.personId?.let { requireEntity(c, "people", "person", it); sets += "person_id = ?"; args += UUID.fromString(it) }
-        update.organizationId?.let { requireEntity(c, "organizations", "organization", it); sets += "organization_id = ?"; args += UUID.fromString(it) }
-        update.projectId?.let { requireEntity(c, "projects", "project", it); sets += "project_id = ?"; args += UUID.fromString(it) }
+        update.personId?.let { requireEntity(c, userId, "people", "person", it); sets += "person_id = ?"; args += UUID.fromString(it) }
+        update.organizationId?.let { requireEntity(c, userId, "organizations", "organization", it); sets += "organization_id = ?"; args += UUID.fromString(it) }
+        update.projectId?.let { requireEntity(c, userId, "projects", "project", it); sets += "project_id = ?"; args += UUID.fromString(it) }
         update.privacyScope?.let { sets += "privacy_scope = ?"; args += it.name }
         update.isActive?.let { sets += "is_active = ?"; args += it }
         update.metadata?.let { sets += "metadata = ?::jsonb"; args += toJson(it) }
@@ -217,7 +217,7 @@ class PostgresMemoryStore(private val dataSource: DataSource) : MemoryStore {
 
     override suspend fun createPerson(userId: UUID, person: NewPerson): Person = tx { c ->
         person.validate()
-        person.organizationId?.let { requireEntity(c, "organizations", "organization", it) }
+        person.organizationId?.let { requireEntity(c, userId, "organizations", "organization", it) }
         val id = UUID.randomUUID()
         c.prepareStatement("INSERT INTO people (id, user_id, name, aliases, relationship, organization_id, role, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").use { st ->
             st.setObject(1, id); st.setObject(2, userId); st.setString(3, person.name.trim())
@@ -229,6 +229,35 @@ class PostgresMemoryStore(private val dataSource: DataSource) : MemoryStore {
     }
 
     override suspend fun listPeople(userId: UUID, includeInactive: Boolean): List<Person> = tx { c -> listPeopleIn(c, userId, includeInactive) }
+
+    override suspend fun updatePerson(userId: UUID, id: UUID, update: PersonUpdate): Person = tx { c ->
+        update.validate()
+        val current = listPeopleIn(c, userId, true).firstOrNull { it.id == id.toString() }
+            ?: throw EntityNotFoundException("person", id.toString())
+        update.organizationId?.let { requireEntity(c, userId, "organizations", "organization", it) }
+        val changed = current.copy(
+            name = update.name?.trim() ?: current.name,
+            aliases = update.aliases ?: current.aliases,
+            relationship = if (update.clearRelationship) null else update.relationship ?: current.relationship,
+            organizationId = if (update.clearOrganization) null else update.organizationId ?: current.organizationId,
+            role = if (update.clearRole) null else update.role ?: current.role,
+            notes = if (update.clearNotes) null else update.notes ?: current.notes,
+            isActive = update.isActive ?: current.isActive,
+        )
+        c.prepareStatement(
+            "UPDATE people SET name = ?, aliases = ?, relationship = ?, organization_id = ?, role = ?, notes = ?, is_active = ?, updated_at = now() WHERE id = ? AND user_id = ?",
+        ).use { st ->
+            st.setString(1, changed.name); st.setArray(2, c.createArrayOf("text", changed.aliases.toTypedArray()))
+            st.setString(3, changed.relationship); st.setObject(4, changed.organizationId?.let(UUID::fromString))
+            st.setString(5, changed.role); st.setString(6, changed.notes); st.setBoolean(7, changed.isActive)
+            st.setObject(8, id); st.setObject(9, userId); st.executeUpdate()
+        }
+        changed
+    }
+
+    override suspend fun deletePerson(userId: UUID, id: UUID) = tx { c ->
+        deleteEntity(c, userId, "people", "person", id)
+    }
 
     private fun listPeopleIn(c: Connection, userId: UUID, includeInactive: Boolean): List<Person> =
         c.prepareStatement("SELECT id, name, aliases, relationship, organization_id, role, notes, is_active FROM people WHERE user_id = ?${if (includeInactive) "" else " AND is_active"} ORDER BY lower(name)").use { st ->
@@ -247,7 +276,7 @@ class PostgresMemoryStore(private val dataSource: DataSource) : MemoryStore {
 
     override suspend fun createProject(userId: UUID, project: NewProject): Project = tx { c ->
         project.validate()
-        project.organizationId?.let { requireEntity(c, "organizations", "organization", it) }
+        project.organizationId?.let { requireEntity(c, userId, "organizations", "organization", it) }
         val id = UUID.randomUUID()
         c.prepareStatement("INSERT INTO projects (id, user_id, name, description, organization_id) VALUES (?, ?, ?, ?, ?)").use { st ->
             st.setObject(1, id); st.setObject(2, userId); st.setString(3, project.name.trim()); st.setString(4, project.description)
@@ -257,6 +286,32 @@ class PostgresMemoryStore(private val dataSource: DataSource) : MemoryStore {
     }
 
     override suspend fun listProjects(userId: UUID, includeInactive: Boolean): List<Project> = tx { c -> listProjectsIn(c, userId, includeInactive) }
+
+    override suspend fun updateProject(userId: UUID, id: UUID, update: ProjectUpdate): Project = tx { c ->
+        update.validate()
+        val current = listProjectsIn(c, userId, true).firstOrNull { it.id == id.toString() }
+            ?: throw EntityNotFoundException("project", id.toString())
+        update.organizationId?.let { requireEntity(c, userId, "organizations", "organization", it) }
+        val changed = current.copy(
+            name = update.name?.trim() ?: current.name,
+            description = if (update.clearDescription) null else update.description ?: current.description,
+            organizationId = if (update.clearOrganization) null else update.organizationId ?: current.organizationId,
+            status = update.status ?: current.status,
+            isActive = update.isActive ?: current.isActive,
+        )
+        c.prepareStatement(
+            "UPDATE projects SET name = ?, description = ?, organization_id = ?, status = ?, is_active = ?, updated_at = now() WHERE id = ? AND user_id = ?",
+        ).use { st ->
+            st.setString(1, changed.name); st.setString(2, changed.description)
+            st.setObject(3, changed.organizationId?.let(UUID::fromString)); st.setString(4, changed.status)
+            st.setBoolean(5, changed.isActive); st.setObject(6, id); st.setObject(7, userId); st.executeUpdate()
+        }
+        changed
+    }
+
+    override suspend fun deleteProject(userId: UUID, id: UUID) = tx { c ->
+        deleteEntity(c, userId, "projects", "project", id)
+    }
 
     private fun listProjectsIn(c: Connection, userId: UUID, includeInactive: Boolean): List<Project> =
         c.prepareStatement("SELECT id, name, description, organization_id, status, is_active FROM projects WHERE user_id = ?${if (includeInactive) "" else " AND is_active"} ORDER BY lower(name)").use { st ->
@@ -282,6 +337,30 @@ class PostgresMemoryStore(private val dataSource: DataSource) : MemoryStore {
     }
 
     override suspend fun listOrganizations(userId: UUID, includeInactive: Boolean): List<Organization> = tx { c -> listOrganizationsIn(c, userId, includeInactive) }
+
+    override suspend fun updateOrganization(userId: UUID, id: UUID, update: OrganizationUpdate): Organization = tx { c ->
+        update.validate()
+        val current = listOrganizationsIn(c, userId, true).firstOrNull { it.id == id.toString() }
+            ?: throw EntityNotFoundException("organization", id.toString())
+        val changed = current.copy(
+            name = update.name?.trim() ?: current.name,
+            aliases = update.aliases ?: current.aliases,
+            notes = if (update.clearNotes) null else update.notes ?: current.notes,
+            isActive = update.isActive ?: current.isActive,
+        )
+        c.prepareStatement(
+            "UPDATE organizations SET name = ?, aliases = ?, notes = ?, is_active = ?, updated_at = now() WHERE id = ? AND user_id = ?",
+        ).use { st ->
+            st.setString(1, changed.name); st.setArray(2, c.createArrayOf("text", changed.aliases.toTypedArray()))
+            st.setString(3, changed.notes); st.setBoolean(4, changed.isActive)
+            st.setObject(5, id); st.setObject(6, userId); st.executeUpdate()
+        }
+        changed
+    }
+
+    override suspend fun deleteOrganization(userId: UUID, id: UUID) = tx { c ->
+        deleteEntity(c, userId, "organizations", "organization", id)
+    }
 
     private fun listOrganizationsIn(c: Connection, userId: UUID, includeInactive: Boolean): List<Organization> =
         c.prepareStatement("SELECT id, name, aliases, notes, is_active FROM organizations WHERE user_id = ?${if (includeInactive) "" else " AND is_active"} ORDER BY lower(name)").use { st ->
@@ -311,11 +390,19 @@ class PostgresMemoryStore(private val dataSource: DataSource) : MemoryStore {
             st.executeQuery().use { rs -> if (rs.next()) rowToMemory(rs) else throw MemoryNotFoundException(id.toString()) }
         }
 
-    private fun requireEntity(c: Connection, table: String, kind: String, id: String) {
+    private fun requireEntity(c: Connection, userId: UUID, table: String, kind: String, id: String) {
         val uuid = parseUuid(id, "${kind}Id")
-        c.prepareStatement("SELECT 1 FROM $table WHERE id = ?").use { st ->
-            st.setObject(1, uuid); st.executeQuery().use { rs -> if (!rs.next()) throw EntityNotFoundException(kind, id) }
+        c.prepareStatement("SELECT 1 FROM $table WHERE id = ? AND user_id = ?").use { st ->
+            st.setObject(1, uuid); st.setObject(2, userId)
+            st.executeQuery().use { rs -> if (!rs.next()) throw EntityNotFoundException(kind, id) }
         }
+    }
+
+    private fun deleteEntity(c: Connection, userId: UUID, table: String, kind: String, id: UUID) {
+        val deleted = c.prepareStatement("DELETE FROM $table WHERE id = ? AND user_id = ?").use { st ->
+            st.setObject(1, id); st.setObject(2, userId); st.executeUpdate()
+        }
+        if (deleted == 0) throw EntityNotFoundException(kind, id.toString())
     }
 
     private fun logEvent(c: Connection, memoryId: UUID, userId: UUID, type: MemoryEventType, details: Map<String, String>) {

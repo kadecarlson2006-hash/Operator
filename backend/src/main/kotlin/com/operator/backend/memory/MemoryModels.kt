@@ -164,6 +164,35 @@ data class NewPerson(
 }
 
 @Serializable
+data class PersonUpdate(
+    val name: String? = null,
+    val aliases: List<String>? = null,
+    val relationship: String? = null,
+    val organizationId: String? = null,
+    val role: String? = null,
+    val notes: String? = null,
+    val isActive: Boolean? = null,
+    val clearRelationship: Boolean = false,
+    val clearOrganization: Boolean = false,
+    val clearRole: Boolean = false,
+    val clearNotes: Boolean = false,
+) {
+    fun validate() {
+        name?.let { if (it.isBlank()) throw MemoryValidationException("name must not be blank") }
+        organizationId?.let { parseUuid(it, "organizationId") }
+        if (organizationId != null && clearOrganization) throw MemoryValidationException("organizationId and clearOrganization cannot both be set")
+        if (relationship != null && clearRelationship) throw MemoryValidationException("relationship and clearRelationship cannot both be set")
+        if (role != null && clearRole) throw MemoryValidationException("role and clearRole cannot both be set")
+        if (notes != null && clearNotes) throw MemoryValidationException("notes and clearNotes cannot both be set")
+        if (isEmpty) throw MemoryValidationException("person update must contain at least one field")
+    }
+
+    private val isEmpty: Boolean
+        get() = name == null && aliases == null && relationship == null && organizationId == null && role == null &&
+            notes == null && isActive == null && !clearRelationship && !clearOrganization && !clearRole && !clearNotes
+}
+
+@Serializable
 data class Project(val id: String, val name: String, val description: String? = null, val organizationId: String? = null, val status: String = "ACTIVE", val isActive: Boolean = true)
 
 @Serializable
@@ -175,12 +204,53 @@ data class NewProject(val name: String, val description: String? = null, val org
 }
 
 @Serializable
+data class ProjectUpdate(
+    val name: String? = null,
+    val description: String? = null,
+    val organizationId: String? = null,
+    val status: String? = null,
+    val isActive: Boolean? = null,
+    val clearDescription: Boolean = false,
+    val clearOrganization: Boolean = false,
+) {
+    fun validate() {
+        name?.let { if (it.isBlank()) throw MemoryValidationException("name must not be blank") }
+        status?.let { if (it.isBlank()) throw MemoryValidationException("status must not be blank") }
+        organizationId?.let { parseUuid(it, "organizationId") }
+        if (organizationId != null && clearOrganization) throw MemoryValidationException("organizationId and clearOrganization cannot both be set")
+        if (description != null && clearDescription) throw MemoryValidationException("description and clearDescription cannot both be set")
+        if (isEmpty) throw MemoryValidationException("project update must contain at least one field")
+    }
+
+    private val isEmpty: Boolean
+        get() = name == null && description == null && organizationId == null && status == null && isActive == null &&
+            !clearDescription && !clearOrganization
+}
+
+@Serializable
 data class Organization(val id: String, val name: String, val aliases: List<String> = emptyList(), val notes: String? = null, val isActive: Boolean = true)
 
 @Serializable
 data class NewOrganization(val name: String, val aliases: List<String> = emptyList(), val notes: String? = null) {
     fun validate() {
         if (name.isBlank()) throw MemoryValidationException("name must not be blank")
+    }
+}
+
+@Serializable
+data class OrganizationUpdate(
+    val name: String? = null,
+    val aliases: List<String>? = null,
+    val notes: String? = null,
+    val isActive: Boolean? = null,
+    val clearNotes: Boolean = false,
+) {
+    fun validate() {
+        name?.let { if (it.isBlank()) throw MemoryValidationException("name must not be blank") }
+        if (notes != null && clearNotes) throw MemoryValidationException("notes and clearNotes cannot both be set")
+        if (name == null && aliases == null && notes == null && isActive == null && !clearNotes) {
+            throw MemoryValidationException("organization update must contain at least one field")
+        }
     }
 }
 

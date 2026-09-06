@@ -144,6 +144,63 @@ class PostgresMemoryStoreTest {
     }
 
     @Test
+    fun `entity patch and delete persist and unlink references`() = runTest {
+        val organization = store.createOrganization(DEFAULT_USER_ID, NewOrganization("Acme", notes = "customer"))
+        val person = store.createPerson(
+            DEFAULT_USER_ID,
+            NewPerson("Chris", organizationId = organization.id, role = "dispatcher"),
+        )
+        val project = store.createProject(
+            DEFAULT_USER_ID,
+            NewProject("West rollout", organizationId = organization.id),
+        )
+        val memory = store.create(
+            DEFAULT_USER_ID,
+            NewMemory(
+                MemoryType.WORK_FACT,
+                "Chris owns the west rollout",
+                personId = person.id,
+                organizationId = organization.id,
+                projectId = project.id,
+            ),
+        )
+
+        val changedPerson = store.updatePerson(
+            DEFAULT_USER_ID,
+            UUID.fromString(person.id),
+            PersonUpdate(name = "Christopher", clearRole = true),
+        )
+        assertEquals("Christopher", changedPerson.name)
+        assertNull(changedPerson.role)
+        val changedProject = store.updateProject(
+            DEFAULT_USER_ID,
+            UUID.fromString(project.id),
+            ProjectUpdate(status = "DONE", isActive = false),
+        )
+        assertEquals("DONE", changedProject.status)
+        assertTrue(store.listProjects(DEFAULT_USER_ID).isEmpty())
+        assertEquals(1, store.listProjects(DEFAULT_USER_ID, includeInactive = true).size)
+        val changedOrganization = store.updateOrganization(
+            DEFAULT_USER_ID,
+            UUID.fromString(organization.id),
+            OrganizationUpdate(aliases = listOf("ACME"), clearNotes = true),
+        )
+        assertEquals(listOf("ACME"), changedOrganization.aliases)
+        assertNull(changedOrganization.notes)
+
+        store.deleteOrganization(DEFAULT_USER_ID, UUID.fromString(organization.id))
+        assertNull(store.get(DEFAULT_USER_ID, UUID.fromString(memory.id)).organizationId)
+        assertNull(store.listPeople(DEFAULT_USER_ID, includeInactive = true).single().organizationId)
+        assertNull(store.listProjects(DEFAULT_USER_ID, includeInactive = true).single().organizationId)
+        store.deletePerson(DEFAULT_USER_ID, UUID.fromString(person.id))
+        store.deleteProject(DEFAULT_USER_ID, UUID.fromString(project.id))
+        val unlinked = store.get(DEFAULT_USER_ID, UUID.fromString(memory.id))
+        assertNull(unlinked.personId)
+        assertNull(unlinked.projectId)
+        assertFailsWith<EntityNotFoundException> { store.deletePerson(DEFAULT_USER_ID, UUID.fromString(person.id)) }
+    }
+
+    @Test
     fun `pgvector similarity search is correct without an ANN index`() = runTest {
         assertFalse(hasApproximateNearestNeighborIndex(), "Risk 25 fixture must exercise the exact-scan path")
 

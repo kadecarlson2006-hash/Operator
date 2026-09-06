@@ -110,4 +110,56 @@ class InMemoryMemoryStoreTest {
         assertNotNull(touched.lastUsedAt)
         assertEquals(MemoryEventType.USED, store.events(user, java.util.UUID.fromString(m.id)).last().eventType)
     }
+
+    @Test
+    fun `entities can be patched deleted and remain scoped to their user`() = runTest {
+        val store = InMemoryMemoryStore()
+        val organization = store.createOrganization(user, NewOrganization("Acme", notes = "customer"))
+        val person = store.createPerson(user, NewPerson("Chris", organizationId = organization.id, role = "dispatcher"))
+        val project = store.createProject(user, NewProject("West", organizationId = organization.id))
+        val memory = store.create(
+            user,
+            NewMemory(
+                MemoryType.WORK_FACT,
+                "Chris owns the west rollout",
+                personId = person.id,
+                organizationId = organization.id,
+                projectId = project.id,
+            ),
+        )
+
+        val updatedPerson = store.updatePerson(
+            user,
+            java.util.UUID.fromString(person.id),
+            PersonUpdate(name = "Christopher", clearOrganization = true, clearRole = true),
+        )
+        assertEquals("Christopher", updatedPerson.name)
+        assertNull(updatedPerson.organizationId)
+        assertNull(updatedPerson.role)
+
+        val updatedProject = store.updateProject(
+            user,
+            java.util.UUID.fromString(project.id),
+            ProjectUpdate(status = "DONE", isActive = false),
+        )
+        assertEquals("DONE", updatedProject.status)
+        assertTrue(store.listProjects(user).isEmpty())
+        assertEquals(1, store.listProjects(user, includeInactive = true).size)
+
+        val otherUser = java.util.UUID.randomUUID()
+        assertTrue(store.listPeople(otherUser, includeInactive = true).isEmpty())
+        assertFailsWith<EntityNotFoundException> {
+            store.updatePerson(otherUser, java.util.UUID.fromString(person.id), PersonUpdate(name = "Wrong owner"))
+        }
+
+        store.deleteOrganization(user, java.util.UUID.fromString(organization.id))
+        assertNull(store.get(user, java.util.UUID.fromString(memory.id)).organizationId)
+        assertNull(store.listProjects(user, includeInactive = true).single().organizationId)
+        store.deletePerson(user, java.util.UUID.fromString(person.id))
+        store.deleteProject(user, java.util.UUID.fromString(project.id))
+        val unlinked = store.get(user, java.util.UUID.fromString(memory.id))
+        assertNull(unlinked.personId)
+        assertNull(unlinked.projectId)
+        assertFailsWith<EntityNotFoundException> { store.deletePerson(user, java.util.UUID.fromString(person.id)) }
+    }
 }

@@ -21,15 +21,18 @@ class InMemoryMemoryStore(private val clock: Clock = Clock.systemUTC()) : Memory
     private val people = LinkedHashMap<UUID, Person>()
     private val projects = LinkedHashMap<UUID, Project>()
     private val organizations = LinkedHashMap<UUID, Organization>()
+    private val peopleOwners = HashMap<UUID, UUID>()
+    private val projectOwners = HashMap<UUID, UUID>()
+    private val organizationOwners = HashMap<UUID, UUID>()
     private var eventSeq = 0L
 
     private fun now(): String = Instant.now(clock).toString()
 
     override suspend fun create(userId: UUID, memory: NewMemory): Memory = lock.withLock {
         memory.validate()
-        memory.personId?.let { if (!people.containsKey(UUID.fromString(it))) throw EntityNotFoundException("person", it) }
-        memory.projectId?.let { if (!projects.containsKey(UUID.fromString(it))) throw EntityNotFoundException("project", it) }
-        memory.organizationId?.let { if (!organizations.containsKey(UUID.fromString(it))) throw EntityNotFoundException("organization", it) }
+        memory.personId?.let { requireOwned(peopleOwners, userId, "person", it) }
+        memory.projectId?.let { requireOwned(projectOwners, userId, "project", it) }
+        memory.organizationId?.let { requireOwned(organizationOwners, userId, "organization", it) }
         val key = contentKey(memory.content)
         memories.values.firstOrNull { it.userId == userId.toString() && it.isActive && it.memoryType == memory.memoryType && contentKey(it.content) == key }
             ?.let { throw DuplicateMemoryException(it.id) }
@@ -162,30 +165,107 @@ class InMemoryMemoryStore(private val clock: Clock = Clock.systemUTC()) : Memory
 
     override suspend fun createPerson(userId: UUID, person: NewPerson): Person = lock.withLock {
         person.validate()
+        person.organizationId?.let { requireOwned(organizationOwners, userId, "organization", it) }
         val p = Person(UUID.randomUUID().toString(), person.name.trim(), person.aliases, person.relationship, person.organizationId, person.role, person.notes)
-        people[UUID.fromString(p.id)] = p
+        val id = UUID.fromString(p.id)
+        people[id] = p
+        peopleOwners[id] = userId
         p
     }
 
-    override suspend fun listPeople(userId: UUID, includeInactive: Boolean): List<Person> = lock.withLock { people.values.filter { includeInactive || it.isActive } }
+    override suspend fun listPeople(userId: UUID, includeInactive: Boolean): List<Person> = lock.withLock {
+        people.filter { (id, person) -> peopleOwners[id] == userId && (includeInactive || person.isActive) }.values.toList()
+    }
+
+    override suspend fun updatePerson(userId: UUID, id: UUID, update: PersonUpdate): Person = lock.withLock {
+        update.validate()
+        val current = owned(people, peopleOwners, userId, "person", id)
+        update.organizationId?.let { requireOwned(organizationOwners, userId, "organization", it) }
+        current.copy(
+            name = update.name?.trim() ?: current.name,
+            aliases = update.aliases ?: current.aliases,
+            relationship = if (update.clearRelationship) null else update.relationship ?: current.relationship,
+            organizationId = if (update.clearOrganization) null else update.organizationId ?: current.organizationId,
+            role = if (update.clearRole) null else update.role ?: current.role,
+            notes = if (update.clearNotes) null else update.notes ?: current.notes,
+            isActive = update.isActive ?: current.isActive,
+        ).also { people[id] = it }
+    }
+
+    override suspend fun deletePerson(userId: UUID, id: UUID) = lock.withLock {
+        owned(people, peopleOwners, userId, "person", id)
+        people.remove(id)
+        peopleOwners.remove(id)
+        memories.replaceAll { _, memory -> if (memory.personId == id.toString()) memory.copy(personId = null) else memory }
+    }
 
     override suspend fun createProject(userId: UUID, project: NewProject): Project = lock.withLock {
         project.validate()
+        project.organizationId?.let { requireOwned(organizationOwners, userId, "organization", it) }
         val p = Project(UUID.randomUUID().toString(), project.name.trim(), project.description, project.organizationId)
-        projects[UUID.fromString(p.id)] = p
+        val id = UUID.fromString(p.id)
+        projects[id] = p
+        projectOwners[id] = userId
         p
     }
 
-    override suspend fun listProjects(userId: UUID, includeInactive: Boolean): List<Project> = lock.withLock { projects.values.filter { includeInactive || it.isActive } }
+    override suspend fun listProjects(userId: UUID, includeInactive: Boolean): List<Project> = lock.withLock {
+        projects.filter { (id, project) -> projectOwners[id] == userId && (includeInactive || project.isActive) }.values.toList()
+    }
+
+    override suspend fun updateProject(userId: UUID, id: UUID, update: ProjectUpdate): Project = lock.withLock {
+        update.validate()
+        val current = owned(projects, projectOwners, userId, "project", id)
+        update.organizationId?.let { requireOwned(organizationOwners, userId, "organization", it) }
+        current.copy(
+            name = update.name?.trim() ?: current.name,
+            description = if (update.clearDescription) null else update.description ?: current.description,
+            organizationId = if (update.clearOrganization) null else update.organizationId ?: current.organizationId,
+            status = update.status ?: current.status,
+            isActive = update.isActive ?: current.isActive,
+        ).also { projects[id] = it }
+    }
+
+    override suspend fun deleteProject(userId: UUID, id: UUID) = lock.withLock {
+        owned(projects, projectOwners, userId, "project", id)
+        projects.remove(id)
+        projectOwners.remove(id)
+        memories.replaceAll { _, memory -> if (memory.projectId == id.toString()) memory.copy(projectId = null) else memory }
+    }
 
     override suspend fun createOrganization(userId: UUID, organization: NewOrganization): Organization = lock.withLock {
         organization.validate()
         val o = Organization(UUID.randomUUID().toString(), organization.name.trim(), organization.aliases, organization.notes)
-        organizations[UUID.fromString(o.id)] = o
+        val id = UUID.fromString(o.id)
+        organizations[id] = o
+        organizationOwners[id] = userId
         o
     }
 
-    override suspend fun listOrganizations(userId: UUID, includeInactive: Boolean): List<Organization> = lock.withLock { organizations.values.filter { includeInactive || it.isActive } }
+    override suspend fun listOrganizations(userId: UUID, includeInactive: Boolean): List<Organization> = lock.withLock {
+        organizations.filter { (id, organization) -> organizationOwners[id] == userId && (includeInactive || organization.isActive) }.values.toList()
+    }
+
+    override suspend fun updateOrganization(userId: UUID, id: UUID, update: OrganizationUpdate): Organization = lock.withLock {
+        update.validate()
+        val current = owned(organizations, organizationOwners, userId, "organization", id)
+        current.copy(
+            name = update.name?.trim() ?: current.name,
+            aliases = update.aliases ?: current.aliases,
+            notes = if (update.clearNotes) null else update.notes ?: current.notes,
+            isActive = update.isActive ?: current.isActive,
+        ).also { organizations[id] = it }
+    }
+
+    override suspend fun deleteOrganization(userId: UUID, id: UUID) = lock.withLock {
+        owned(organizations, organizationOwners, userId, "organization", id)
+        organizations.remove(id)
+        organizationOwners.remove(id)
+        val organizationId = id.toString()
+        memories.replaceAll { _, memory -> if (memory.organizationId == organizationId) memory.copy(organizationId = null) else memory }
+        people.replaceAll { _, person -> if (person.organizationId == organizationId) person.copy(organizationId = null) else person }
+        projects.replaceAll { _, project -> if (project.organizationId == organizationId) project.copy(organizationId = null) else project }
+    }
 
     override suspend fun count(userId: UUID, includeInactive: Boolean): Long = lock.withLock {
         memories.values.count { it.userId == userId.toString() && (includeInactive || it.isActive) }.toLong()
@@ -193,6 +273,14 @@ class InMemoryMemoryStore(private val clock: Clock = Clock.systemUTC()) : Memory
 
     private fun find(userId: UUID, id: UUID): Memory =
         memories[id]?.takeIf { it.userId == userId.toString() } ?: throw MemoryNotFoundException(id.toString())
+
+    private fun requireOwned(owners: Map<UUID, UUID>, userId: UUID, kind: String, id: String) {
+        val uuid = parseUuid(id, "${kind}Id")
+        if (owners[uuid] != userId) throw EntityNotFoundException(kind, id)
+    }
+
+    private fun <T> owned(values: Map<UUID, T>, owners: Map<UUID, UUID>, userId: UUID, kind: String, id: UUID): T =
+        values[id]?.takeIf { owners[id] == userId } ?: throw EntityNotFoundException(kind, id.toString())
 
     private fun log(memoryId: UUID, type: MemoryEventType, details: Map<String, String>) {
         events += MemoryEvent(++eventSeq, memoryId.toString(), type, now(), details)

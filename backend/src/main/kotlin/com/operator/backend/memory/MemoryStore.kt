@@ -32,10 +32,16 @@ interface MemoryStore {
 
     suspend fun createPerson(userId: UUID, person: NewPerson): Person
     suspend fun listPeople(userId: UUID, includeInactive: Boolean = false): List<Person>
+    suspend fun updatePerson(userId: UUID, id: UUID, update: PersonUpdate): Person
+    suspend fun deletePerson(userId: UUID, id: UUID)
     suspend fun createProject(userId: UUID, project: NewProject): Project
     suspend fun listProjects(userId: UUID, includeInactive: Boolean = false): List<Project>
+    suspend fun updateProject(userId: UUID, id: UUID, update: ProjectUpdate): Project
+    suspend fun deleteProject(userId: UUID, id: UUID)
     suspend fun createOrganization(userId: UUID, organization: NewOrganization): Organization
     suspend fun listOrganizations(userId: UUID, includeInactive: Boolean = false): List<Organization>
+    suspend fun updateOrganization(userId: UUID, id: UUID, update: OrganizationUpdate): Organization
+    suspend fun deleteOrganization(userId: UUID, id: UUID)
 
     suspend fun count(userId: UUID, includeInactive: Boolean = false): Long
 }
