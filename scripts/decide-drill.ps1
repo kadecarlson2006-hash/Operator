@@ -109,7 +109,7 @@ $invited = @(
 
 $results = [System.Collections.Generic.List[object]]::new()
 
-function Run-Group($label, $scenarios, $waitBetween) {
+function Run-Group($key, $label, $scenarios, $waitBetween) {
     Write-Host ""
     Write-Host $label -ForegroundColor Cyan
     $first = $true
@@ -122,7 +122,7 @@ function Run-Group($label, $scenarios, $waitBetween) {
         $r = Invoke-Decide $s.body
         if ($r.PSObject.Properties.Name -contains "error") {
             Write-Host ("  [FAIL] {0}: {1}" -f $s.name, $r.error) -ForegroundColor Red
-            $results.Add([PSCustomObject]@{ Group=$label; Scenario=$s.name; Spoke="ERROR"; Reason=$r.error; Cost=""; Ms=""; Said="" })
+            $results.Add([PSCustomObject]@{ Group=$key; Scenario=$s.name; Spoke="ERROR"; Reason=$r.error; Cost=""; Ms=""; Said="" })
             continue
         }
         if ($r.gatedLocally) { $cost = "free" } elseif ($r.modelCalled) { $cost = "model" } else { $cost = "-" }
@@ -132,7 +132,7 @@ function Run-Group($label, $scenarios, $waitBetween) {
         if ($r.response) { Write-Host ("      -> `"{0}`"" -f $r.response) -ForegroundColor Gray }
         if ($r.suppressedAfterModel) { Write-Host "      (the model wanted to speak; the local rules overruled it)" -ForegroundColor DarkGray }
         $results.Add([PSCustomObject]@{
-            Group=$label; Scenario=$s.name; Spoke=$spoke; Reason=$r.reasonCode; Cost=$cost
+            Group=$key; Scenario=$s.name; Spoke=$spoke; Reason=$r.reasonCode; Cost=$cost
             Ms=$r.latencyMillis; Confidence=$r.confidence; Relevance=$r.relevance
             Suppressed=$r.suppressedAfterModel; Said=$r.response
         })
@@ -142,8 +142,8 @@ function Run-Group($label, $scenarios, $waitBetween) {
 Write-Host "Stage 6 decision drill against $BaseUrl" -ForegroundColor Cyan
 Write-Host "Silence is the expected outcome. SPOKE on ambient is the thing to judge." -ForegroundColor DarkGray
 
-Run-Group "FREE - refused by local rules, no model call" $free $false
-Run-Group "AMBIENT - uninvited, the real test" $ambient (-not $SkipAmbientWaits)
+Run-Group "FREE" "FREE - refused by local rules, no model call" $free $false
+Run-Group "AMBIENT" "AMBIENT - uninvited, the real test" $ambient (-not $SkipAmbientWaits)
 
 # An ambient call immediately after the last one: the interval should refuse it for nothing.
 Write-Host ""
@@ -158,11 +158,11 @@ if ($r.PSObject.Properties.Name -contains "error") {
     $results.Add([PSCustomObject]@{ Group="IMMEDIATE REPEAT"; Scenario="repeat immediately"; Spoke="silent"; Reason=$r.reasonCode; Cost=$cost; Ms=$r.latencyMillis })
 }
 
-Run-Group "INVITED - bypasses the interval and budget" $invited $false
+Run-Group "INVITED" "INVITED - bypasses the interval and budget" $invited $false
 
 # --- Summary ------------------------------------------------------------------------
 
-$amb = $results | Where-Object { $_.Group -like "AMBIENT*" }
+$amb = $results | Where-Object { $_.Group -eq "AMBIENT" }
 $spokeCount = @($amb | Where-Object { $_.Spoke -eq "SPOKE" }).Count
 $modelCalls = @($results | Where-Object { $_.Cost -eq "model" }).Count
 $freeRefusals = @($results | Where-Object { $_.Cost -eq "free" }).Count
@@ -180,4 +180,6 @@ Write-Host "  Judge the SPOKE lines yourself: was any of it worth hearing?" -For
 if ($OutFile) {
     $results | Export-Csv -NoTypeInformation -Path $OutFile
     Write-Host ("  Saved {0} rows to {1}" -f $results.Count, $OutFile) -ForegroundColor DarkGray
+    Write-Host "  Review the paid decisions with:" -ForegroundColor DarkGray
+    Write-Host ("    Import-Csv {0} | Where-Object {{ `$_.Cost -eq 'model' }} | Format-Table Scenario,Spoke,Reason,Confidence,Relevance,Suppressed,Ms -AutoSize" -f $OutFile) -ForegroundColor DarkGray
 }
