@@ -1,9 +1,9 @@
 # CURRENT STATUS — OPERATOR
 
-**Current milestone:** 13 — Active Operator (implemented; on
-`claude/milestone-13-active-operator`). Deciding on its own is off by default: see risk 49.
+**Current milestone:** 13 — Active Operator (merged to `main`). Deciding on its own is off by
+default: see risk 49.
 
-**`main` contains Milestones 0 through 12.** Milestones 1 to 3 still await verification on real
+**`main` contains Milestones 0 through 13.** Milestones 1 to 3 still await verification on real
 hardware, and no live model, transcription, or TTS call has ever been made. Both gaps are listed
 below.
 

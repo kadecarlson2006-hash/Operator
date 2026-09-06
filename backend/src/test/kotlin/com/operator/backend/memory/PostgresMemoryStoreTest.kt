@@ -177,8 +177,9 @@ class PostgresMemoryStoreTest {
             ),
         )
         assertEquals(listOf(closest.id, farther.id), hits.map { it.id })
-        assertNotNull(hits[0].distance)
-        assertTrue(hits[0].distance!! < hits[1].distance!!)
+        val closestDistance = assertNotNull(hits[0].distance)
+        val fartherDistance = assertNotNull(hits[1].distance)
+        assertTrue(closestDistance < fartherDistance)
         assertNull(store.get(DEFAULT_USER_ID, UUID.fromString(closest.id)).distance)
         assertTrue(
             store.searchSimilar(DEFAULT_USER_ID, SimilaritySearch(vector = listOf(1f, 0f), limit = 5)).isEmpty(),
