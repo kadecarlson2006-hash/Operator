@@ -7,6 +7,8 @@ import com.operator.app.backend.OperatorBackend
 import com.operator.app.backend.TranscribeResponse
 import com.operator.core.audio.AudioRoute
 import com.operator.core.audio.RouteSelection
+import com.operator.core.transcription.RollingTranscript
+import com.operator.core.transcription.Speaker
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -59,8 +61,14 @@ class ListenControllerTest {
     ) : OperatorBackend {
         val uploads = mutableListOf<ByteArray>()
         var lastSampleRate: Int? = null
-        override suspend fun ask(prompt: String, tier: String?, sessionId: String?, mode: String?, wit: String?): AskResponse =
-            throw UnsupportedOperationException("this fake only transcribes")
+        override suspend fun ask(
+            prompt: String,
+            tier: String?,
+            sessionId: String?,
+            mode: String?,
+            wit: String?,
+            transcript: List<String>,
+        ): AskResponse = throw UnsupportedOperationException("this fake only transcribes")
 
         override suspend fun transcribe(pcm: ByteArray, sampleRateHz: Int, channels: Int, sessionId: String?): TranscribeResponse {
             uploads += pcm
@@ -233,6 +241,81 @@ class ListenControllerTest {
         controller.clearTranscripts()
         assertTrue(controller.state.value.transcripts.isEmpty())
         assertEquals(0, controller.state.value.utterances)
+
+        controller.stop()
+        mic.frames.close()
+    }
+
+    // --- Milestone 11: the rolling window ---
+
+    @Test
+    fun `a transcript joins the rolling window`() = runTest {
+        val mic = FakeMic()
+        val window = RollingTranscript()
+        val controller = ListenController(mic, FakeBackend(text = "meeting moved to Thursday"), this, window)
+
+        controller.start(RouteSelection.Default)
+        mic.speakOnce()
+        advanceUntilIdle()
+
+        assertEquals(listOf("meeting moved to Thursday"), window.entries().map { it.text })
+        assertEquals(
+            Speaker.UNKNOWN,
+            window.entries().single().speaker,
+            "the provider gives text, not diarisation, so the speaker is not known",
+        )
+
+        controller.stop()
+        mic.frames.close()
+    }
+
+    @Test
+    fun `an empty transcript is not a turn in the window`() = runTest {
+        val mic = FakeMic()
+        val window = RollingTranscript()
+        val controller = ListenController(mic, FakeBackend(text = "  "), this, window)
+
+        controller.start(RouteSelection.Default)
+        mic.speakOnce()
+        advanceUntilIdle()
+
+        assertTrue(window.entries().isEmpty(), "silence heard as nothing is not conversation")
+
+        controller.stop()
+        mic.frames.close()
+    }
+
+    @Test
+    fun `a failed upload leaves the window untouched`() = runTest {
+        val mic = FakeMic()
+        val window = RollingTranscript()
+        val controller = ListenController(mic, FakeBackend(failure = BackendException("no route to host")), this, window)
+
+        controller.start(RouteSelection.Default)
+        mic.speakOnce()
+        advanceUntilIdle()
+
+        assertTrue(window.entries().isEmpty(), "nothing was heard, so nothing should be remembered")
+
+        controller.stop()
+        mic.frames.close()
+    }
+
+    @Test
+    fun `clearing drops the rolling window too, not just the panel`() = runTest {
+        val mic = FakeMic()
+        val window = RollingTranscript()
+        val controller = ListenController(mic, FakeBackend(), this, window)
+
+        controller.start(RouteSelection.Default)
+        mic.speakOnce()
+        advanceUntilIdle()
+        assertEquals(1, window.entries().size)
+
+        controller.clearTranscripts()
+
+        assertTrue(window.entries().isEmpty(), "CLEAR must mean cleared, or prompts keep seeing it")
+        assertTrue(controller.state.value.transcripts.isEmpty())
 
         controller.stop()
         mic.frames.close()

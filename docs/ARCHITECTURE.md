@@ -17,7 +17,8 @@ operator/
 │       ├── decision      ResponseCategory, ResponseDecision, ResponseDecisionEngine, SilentDecisionEngine
 │       ├── ai            AIProvider contract            (Milestone 6)
 │       ├── tts           TTSProvider contract           (Milestone 9)
-│       ├── transcription TranscriptionProvider contract (Milestone 8)
+│       ├── transcription TranscriptionProvider contract (Milestone 8),
+│       │                 RollingTranscript, TranscriptEntry, Speaker (Milestone 11)
 │       └── memory        MemoryRepository contract      (Milestone 5)
 ├── backend/   Ktor server (pure JVM) — ADR-017
 │   └── com.operator.backend
@@ -40,7 +41,8 @@ operator/
         │                 AndroidAudioRecorder, AndroidAudioPlayer, AudioSubsystemReporter,
         │                 MicrophoneSource port + ContinuousMicrophone (Milestone 8),
         │                 PcmCapture (AudioRecord setup shared by both capture paths)
-        ├── transcription ListenController — mic → VAD → utterance → backend (Milestone 8)
+        ├── transcription ListenController — mic → VAD → utterance → backend (Milestone 8),
+        │                 TranscriptionService — foreground service, mic type (Milestone 11)
         ├── bluetooth     BluetoothStatusMonitor (adapter state, paired devices)
         ├── glasses       GlassesProviderLoader (reflective factory lookup), GlassesSubsystemReporter
         └── ui            OperatorViewModel, OperatorUiState, OperatorScreen, theme, components

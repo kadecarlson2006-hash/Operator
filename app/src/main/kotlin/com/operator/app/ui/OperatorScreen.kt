@@ -32,6 +32,7 @@ import com.operator.app.ui.components.ConsolePanel
 import com.operator.app.ui.components.KeyValueRow
 import com.operator.app.ui.components.SubsystemRow
 import com.operator.app.transcription.ListenStatus
+import com.operator.core.transcription.Speaker
 import com.operator.app.ui.theme.OperatorColors
 import com.operator.core.audio.AudioRoute
 import com.operator.core.audio.RecordingState
@@ -90,6 +91,7 @@ fun OperatorScreen(state: OperatorUiState, actions: OperatorActions) {
             WitPanel(state, actions)
             AskOperatorPanel(state, actions)
             ListenPanel(state, actions)
+            TranscriptPanel(state, actions)
             AudioTestPanel(state, actions)
             BluetoothPanel(state, actions)
             GlassesPanel(state, actions)
@@ -310,6 +312,7 @@ private fun AskOperatorPanel(state: OperatorUiState, actions: OperatorActions) {
                 KeyValueRow("Memory retrieval", "$it ms" + if (ask.semanticRetrieval) " · semantic" else " · lexical only")
             }
             ask.retrievalNote?.let { KeyValueRow("Retrieval note", it, OperatorColors.AmberDim) }
+            if (ask.transcriptLines > 0) KeyValueRow("Conversation sent", "${ask.transcriptLines} lines")
             ask.costUsd?.let { KeyValueRow("Reported cost", "$%.6f".format(it)) }
         }
         ask.error?.let {
@@ -414,6 +417,56 @@ private fun ListenPanel(state: OperatorUiState, actions: OperatorActions) {
                 }
             }
         }
+    }
+}
+
+
+@Composable
+private fun TranscriptPanel(state: OperatorUiState, actions: OperatorActions) {
+    val lines = state.transcript
+    ConsolePanel("Rolling conversation · Milestone 11") {
+        Text(
+            "The last ${state.config.rollingContextSeconds}s of what was heard, in memory only. " +
+                "Nothing is written to disk, and it is sent with a question so Operator can follow along.",
+            style = MaterialTheme.typography.bodySmall,
+            color = OperatorColors.CreamDim,
+        )
+        Spacer(Modifier.height(10.dp))
+
+        KeyValueRow("LINES HELD", lines.size.toString())
+        if (lines.isNotEmpty()) {
+            val span = (lines.last().atMillis - lines.first().atMillis) / 1000
+            KeyValueRow("SPAN", "${span}s")
+        }
+
+        if (lines.isEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Nothing heard yet.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = OperatorColors.CreamDim,
+            )
+        } else {
+            Spacer(Modifier.height(10.dp))
+            lines.forEach { entry ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        entry.speaker.label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (entry.speaker == Speaker.OPERATOR) OperatorColors.Amber else OperatorColors.AmberDim,
+                    )
+                    Text(entry.text, style = MaterialTheme.typography.bodyMedium, color = OperatorColors.Cream)
+                }
+                Spacer(Modifier.height(4.dp))
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
+        OutlinedButton(
+            onClick = actions.onClearTranscripts,
+            enabled = lines.isNotEmpty() || state.listen.transcripts.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("FORGET WHAT WAS SAID", style = MaterialTheme.typography.labelSmall) }
     }
 }
 

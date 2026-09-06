@@ -24,6 +24,8 @@ data class AskRequest(
     /** Operator mode decides which memory scopes the backend may read (ADR-026). */
     val mode: String? = null,
     val wit: String? = null,
+    /** The rolling conversation window (Milestone 11), oldest line first. */
+    val transcript: List<String> = emptyList(),
 )
 
 /** A memory the backend put in front of the model, with the reason it chose it. */
@@ -47,6 +49,8 @@ data class AskResponse(
     val costUsd: Double? = null,
     val upstreamProvider: String? = null,
     val memoriesUsed: List<UsedMemory> = emptyList(),
+    /** Transcript lines the backend actually used, after its own cap. */
+    val transcriptLines: Int = 0,
     val memoryWritten: MemoryWritten? = null,
     val retrievalMillis: Long? = null,
     val semanticRetrieval: Boolean = false,
@@ -74,7 +78,14 @@ class BackendException(message: String) : Exception(message)
  */
 interface OperatorBackend {
     val configured: Boolean
-    suspend fun ask(prompt: String, tier: String? = null, sessionId: String? = null, mode: String? = null, wit: String? = null): AskResponse
+    suspend fun ask(
+        prompt: String,
+        tier: String? = null,
+        sessionId: String? = null,
+        mode: String? = null,
+        wit: String? = null,
+        transcript: List<String> = emptyList(),
+    ): AskResponse
 
     /**
      * Sends one utterance for transcription. [pcm] is little-endian PCM-16, which is what
@@ -100,13 +111,20 @@ class OperatorBackendClient(private val baseUrl: String?) : OperatorBackend {
 
     override val configured: Boolean get() = !baseUrl.isNullOrBlank()
 
-    override suspend fun ask(prompt: String, tier: String?, sessionId: String?, mode: String?, wit: String?): AskResponse {
+    override suspend fun ask(
+        prompt: String,
+        tier: String?,
+        sessionId: String?,
+        mode: String?,
+        wit: String?,
+        transcript: List<String>,
+    ): AskResponse {
         val base = baseUrl?.trimEnd('/')
             ?: throw BackendException("No backend URL configured. Set OPERATOR_BACKEND_URL in local.properties.")
         val response = try {
             client.post("$base/ai/respond") {
                 contentType(ContentType.Application.Json)
-                setBody(AskRequest(prompt, tier, sessionId, mode, wit))
+                setBody(AskRequest(prompt, tier, sessionId, mode, wit, transcript))
             }
         } catch (e: Exception) {
             Log.w(TAG, "Backend unreachable", e)
