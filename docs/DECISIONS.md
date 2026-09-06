@@ -351,7 +351,44 @@ context from later milestones, and wiring it early would make two subsystems unt
 An empty transcript is returned as an empty result rather than an error — the gate can open on a
 door slam, and silence is a first-class outcome.
 
-## ADR-033: ElevenLabs audio streams through the backend as raw 24 kHz PCM
+## ADR-033: The rolling transcript lives on the phone, not the backend
+
+**Status:** Accepted (Milestone 11)
+
+The window is held in memory on the device and sent with a question, rather than accumulated
+server-side. A backend that kept the conversation would be a permanent record of everything heard
+in a room, which the brief forbids; a phone-side buffer bounded by age and count is the rolling
+buffer it allows. The backend reads the window into one prompt and drops it.
+
+The size limit is nonetheless enforced on the backend as well. The phone bounds its own window,
+but the server must not depend on a well-behaved client to keep prompts — or bills — finite.
+
+## ADR-034: Listening continues in a foreground service, with a visible notification
+
+**Status:** Accepted (Milestone 11)
+
+Continuous capture is only possible from a foreground service, and from API 34 it must declare
+the `microphone` type. The service is started from a user action while the app is visible, which
+is the path Android 14+ still permits; it is never started from the background.
+
+The ongoing notification is treated as a feature, not a platform tax. An assistant that keeps the
+microphone open with no visible sign of it is what the privacy rules exist to prevent, so the
+notification states plainly that Operator is listening and carries a STOP action that works
+without opening the app. It is `VISIBILITY_PUBLIC` because it deliberately carries no transcript
+text: the user should be able to see the microphone is open from a lock screen without any of
+what was said appearing there. Milestone 8's behaviour of stopping when the screen goes away is
+therefore replaced — deliberately, and only because the notification makes it visible instead.
+
+## ADR-035: Speakers are not identified
+
+**Status:** Accepted (Milestone 11)
+
+Every captured line is attributed to `UNKNOWN`, rendered "Someone". The transcription provider
+returns text, not diarisation, so labelling lines with a name would be inventing a capability the
+system does not have — and the brief forbids both that and building profiles of the people around
+the user. Only Operator's own replies are attributed, because those it does know it produced.
+
+## ADR-036: ElevenLabs audio streams through the backend as raw 24 kHz PCM
 
 **Status:** Accepted (Milestone 9)
 
@@ -363,7 +400,7 @@ bidirectional WebSocket endpoint becomes useful only if later work speaks partia
 a complete file. Cancellation closes the phone request, backend stream, provider channel, and
 `AudioTrack`. No audio is written to disk.
 
-## ADR-034: Glasses audio is half-duplex at the application boundary
+## ADR-037: Glasses audio is half-duplex at the application boundary
 
 **Status:** Accepted (Milestone 10)
 

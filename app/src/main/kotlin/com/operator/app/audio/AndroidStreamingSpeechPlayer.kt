@@ -13,6 +13,7 @@ import com.operator.core.audio.AudioException
 import com.operator.core.audio.AudioRoute
 import com.operator.core.audio.RouteSelection
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -153,7 +154,9 @@ class AndroidStreamingSpeechPlayer(
         val remainingMillis = totalFrames * 1_000L / sampleRateHz
         val deadline = System.currentTimeMillis() + remainingMillis + DRAIN_GRACE_MILLIS
         while (track.playbackHeadPosition.toLong() < totalFrames && System.currentTimeMillis() < deadline) {
-            ensureActive()
+            // A suspend function has no implicit CoroutineScope receiver, so the context has to be
+            // asked for explicitly; cancellation must still cut the drain loop short.
+            currentCoroutineContext().ensureActive()
             delay(DRAIN_POLL_MILLIS)
         }
     }

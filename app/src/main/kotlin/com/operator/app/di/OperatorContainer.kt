@@ -13,6 +13,7 @@ import com.operator.app.audio.CommunicationLink
 import com.operator.app.audio.ContinuousMicrophone
 import com.operator.app.audio.GlassesAudioCoordinator
 import com.operator.app.transcription.ListenController
+import com.operator.core.transcription.RollingTranscript
 import com.operator.app.bluetooth.BluetoothStatusMonitor
 import com.operator.app.config.BuildConfigLoader
 import com.operator.app.glasses.GlassesProviderLoader
@@ -79,12 +80,20 @@ class OperatorContainer(app: Application) {
     /** Placeholder until Milestone 12. Always NO_RESPONSE. */
     val decisionEngine: ResponseDecisionEngine = SilentDecisionEngine
 
+    /**
+     * Milestone 11: the last [OperatorConfig.rollingContextSeconds] of conversation, in memory
+     * only. One instance for the process, so the Listen panel, the foreground service, and any
+     * question asked all see the same window.
+     */
+    val transcript = RollingTranscript(windowMillis = config.rollingContextSeconds * 1_000L)
+
     /** Milestone 6: the phone's only route to the models; credentials stay on the backend. */
     val backendClient = OperatorBackendClient(config.backendUrl)
     val ask = AskOperatorController(
         backendClient,
         appScope,
         stateSupplier = { stateManager.current.let { it.mode to it.wit } },
+        transcriptSupplier = { transcript.entries().map { "${it.speaker.label}: ${it.text}" } },
     )
     val speechPlayer = AndroidStreamingSpeechPlayer(app, audioRouteMonitor, communicationLink)
     val speech = SpeechController(
@@ -96,7 +105,14 @@ class OperatorContainer(app: Application) {
 
     /** Milestone 8: open microphone, gated by voice-activity detection before anything is sent. */
     private val continuousMicrophone = ContinuousMicrophone(app, audioRouteMonitor, communicationLink)
-    val listen = ListenController(continuousMicrophone, backendClient, appScope)
+    val listen = ListenController(continuousMicrophone, backendClient, appScope, transcript)
+
+    /**
+     * Milestone 10 decides *who holds the microphone*; Milestone 11's TranscriptionService keeps
+     * the process in the foreground so it can be held at all. Both are needed: the coordinator
+     * pauses capture while Operator speaks, and the service is what lets capture survive the
+     * screen going off. The service therefore drives listening through this, never around it.
+     */
     val glassesAudio = GlassesAudioCoordinator(
         listen,
         speech,

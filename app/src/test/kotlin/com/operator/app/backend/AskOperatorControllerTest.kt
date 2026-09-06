@@ -19,9 +19,18 @@ class AskOperatorControllerTest {
         override val configured = true
         var asked: String? = null
         var askedMode: String? = null
-        override suspend fun ask(prompt: String, tier: String?, sessionId: String?, mode: String?, wit: String?): AskResponse {
+        var askedTranscript: List<String> = emptyList()
+        override suspend fun ask(
+            prompt: String,
+            tier: String?,
+            sessionId: String?,
+            mode: String?,
+            wit: String?,
+            transcript: List<String>,
+        ): AskResponse {
             asked = prompt
             askedMode = mode
+            askedTranscript = transcript
             delay(50)
             failure?.let { throw it }
             return reply!!
@@ -101,4 +110,34 @@ class AskOperatorControllerTest {
         assertEquals(AskState(), c.state.value)
         assertTrue(c.lastTimeline.isEmpty())
     }
+    @Test
+    fun `a question carries the rolling conversation, read at send time`() = runTest {
+        val backend = FakeBackend(reply = AskResponse(text = "Thursday.", model = "m", tier = "FAST", transcriptLines = 2))
+        var window = listOf("Someone: are we still on for Thursday")
+        val controller = AskOperatorController(backend, this, transcriptSupplier = { window })
+
+        controller.setPrompt("What day?")
+        // The window grows between opening the panel and pressing send.
+        window = window + "Someone: Thursday works for me"
+        controller.send()
+        advanceUntilIdle()
+
+        assertEquals(2, backend.askedTranscript.size)
+        assertTrue(backend.askedTranscript.last().contains("Thursday works"))
+        assertEquals(2, controller.state.value.transcriptLines)
+    }
+
+    @Test
+    fun `no conversation means an empty transcript, not a fabricated one`() = runTest {
+        val backend = FakeBackend(reply = AskResponse(text = "ok", model = "m", tier = "FAST"))
+        val controller = AskOperatorController(backend, this)
+
+        controller.setPrompt("anything")
+        controller.send()
+        advanceUntilIdle()
+
+        assertTrue(backend.askedTranscript.isEmpty())
+        assertEquals(0, controller.state.value.transcriptLines)
+    }
+
 }

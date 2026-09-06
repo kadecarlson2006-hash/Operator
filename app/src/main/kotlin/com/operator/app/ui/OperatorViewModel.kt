@@ -1,5 +1,6 @@
 package com.operator.app.ui
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -12,6 +13,9 @@ import com.operator.app.backend.SpeechState
 import com.operator.app.bluetooth.BluetoothStatus
 import com.operator.app.di.OperatorContainer
 import com.operator.app.transcription.ListenState
+import com.operator.app.transcription.TranscriptionService
+import com.operator.core.transcription.Speaker
+import com.operator.core.transcription.TranscriptEntry
 import com.operator.core.audio.AudioLoopbackState
 import com.operator.core.audio.AudioRoute
 import com.operator.core.diagnostics.RouteEvent
@@ -43,6 +47,7 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
         val ask: AskState,
         val glasses: com.operator.core.glasses.GlassesState,
         val listen: ListenState,
+        val transcript: List<TranscriptEntry>,
         val speech: SpeechState,
     )
 
@@ -62,8 +67,9 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
         container.ask.state,
         container.glasses.state,
         container.listen.state,
+        container.transcript.state,
         container.speech.state,
-    ) { ask, glasses, listen, speech -> AiSection(ask, glasses, listen, speech) }
+    ) { ask, glasses, listen, transcript, speech -> AiSection(ask, glasses, listen, transcript, speech) }
 
     val uiState: StateFlow<OperatorUiState> = combine(
         container.stateManager.state,
@@ -83,6 +89,7 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
             routeEvents = audio.events,
             ask = ai.ask,
             listen = ai.listen,
+            transcript = ai.transcript,
             speech = ai.speech,
             glasses = ai.glasses,
             glassesActions = container.glasses.actions,
@@ -105,6 +112,9 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
                     container.loopback.cancel()
                     // Muted means neither listening nor speaking; pending auto-resume is revoked.
                     container.glassesAudio.mute()
+                    // And it means forgetting what was already heard: leaving the window populated
+                    // would keep feeding prompts the conversation the user just muted.
+                    container.transcript.clear()
                 }
             }
         }
@@ -153,16 +163,35 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
             return
         }
         val answer = container.ask.state.value.answer.orEmpty()
-        if (!container.glassesAudio.speak(answer)) lastEvent.value = "SPEAK ignored (no answer, muted, busy, or backend unavailable)"
+        if (container.glassesAudio.speak(answer)) {
+            // What Operator says is part of the conversation. Milestone 11 defined Speaker.OPERATOR
+            // for exactly this, and without it the model is told "do not repeat yourself" while
+            // being shown no record of what it already said.
+            container.transcript.add(answer, Speaker.OPERATOR)
+        } else {
+            lastEvent.value = "SPEAK ignored (no answer, muted, busy, or backend unavailable)"
+        }
     }
     fun stopSpeaking() = container.glassesAudio.stopSpeaking()
 
-    // --- Listening (Milestone 8) ---
-    /** Uses the same input the audio test selected, so Bluetooth routing is exercised the same way. */
-    fun startListening() {
-        if (!container.glassesAudio.startListening()) lastEvent.value = "LISTEN ignored (muted, OFF, speaking, or backend unavailable)"
-    }
-    fun stopListening() = container.glassesAudio.stopListening()
+    // --- Listening (Milestones 8, 10 and 11) ---
+    /**
+     * Two things have to be true to listen, and they belong to different milestones: the process
+     * must be held in the foreground (Milestone 11's TranscriptionService) and the microphone
+     * must not be wanted by speech (Milestone 10's coordinator). The service is the entry point
+     * and asks the coordinator; if the coordinator refuses, the service stops itself rather than
+     * sitting in the foreground with no microphone.
+     *
+     * Must be called from the foreground: that is the only path Android 14+ allows for starting
+     * a microphone service.
+     */
+    fun startListening(context: Context) = TranscriptionService.start(context)
+    fun stopListening(context: Context) = TranscriptionService.stop(context)
+
+    /** Teardown paths that have no Context to hand. Goes through the coordinator, not around it. */
+    fun stopListeningNow() = container.glassesAudio.stopListening()
+
+
     fun clearTranscripts() = container.listen.clearTranscripts()
 
     // --- Glasses (Milestone 3) ---

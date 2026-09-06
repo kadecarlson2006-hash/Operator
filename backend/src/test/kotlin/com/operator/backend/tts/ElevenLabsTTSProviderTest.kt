@@ -49,7 +49,7 @@ class ElevenLabsTTSProviderTest {
         val json = Json.parseToJsonElement(body!!).jsonObject
         assertEquals("Good evening.", json["text"]!!.jsonPrimitive.content)
         assertEquals("model-fast", json["model_id"]!!.jsonPrimitive.content)
-        assertTrue(!body!!.contains("eleven-secret"))
+        assertTrue(!body.contains("eleven-secret"))
         provider.close()
     }
 

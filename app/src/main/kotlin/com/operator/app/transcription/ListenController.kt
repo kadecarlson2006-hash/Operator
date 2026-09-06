@@ -8,6 +8,8 @@ import com.operator.core.audio.PcmClip
 import com.operator.core.audio.RouteSelection
 import com.operator.core.audio.SpeechSegmenter
 import com.operator.core.audio.VoiceActivityDetector
+import com.operator.core.transcription.RollingTranscript
+import com.operator.core.transcription.Speaker
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -70,6 +72,8 @@ class ListenController(
     private val microphone: MicrophoneSource,
     private val backend: OperatorBackend,
     private val scope: CoroutineScope,
+    /** The rolling window each transcript joins (Milestone 11). */
+    private val transcript: RollingTranscript = RollingTranscript(),
     private val sessionId: String? = null,
     private val clock: () -> Long = System::currentTimeMillis,
     private val maxTranscripts: Int = 10,
@@ -164,8 +168,15 @@ class ListenController(
         }
     }
 
-    /** Drops every transcript held in memory. */
-    fun clearTranscripts() = _state.update { it.copy(transcripts = emptyList(), utterances = 0) }
+    /**
+     * Drops every transcript held in memory, including the rolling window. CLEAR has to mean
+     * cleared: leaving the window populated would keep feeding prompts what the user just asked
+     * to forget.
+     */
+    fun clearTranscripts() {
+        transcript.clear()
+        _state.update { it.copy(transcripts = emptyList(), utterances = 0) }
+    }
 
     private suspend fun transcribe(utterance: Utterance) {
         _state.update { it.copy(status = ListenStatus.TRANSCRIBING) }
@@ -184,6 +195,9 @@ class ListenController(
                 latencyMillis = response.latencyMillis,
                 roundTripMillis = clock() - utterance.endedAtMillis,
             )
+            // Joins the rolling window (Milestone 11). Speaker is UNKNOWN: the provider returns
+            // text, not diarisation. Empty results are not turns and are not added.
+            if (!line.empty) transcript.add(response.text, Speaker.UNKNOWN, utterance.endedAtMillis)
             _state.update {
                 it.copy(
                     transcripts = (it.transcripts + line).takeLast(maxTranscripts),
