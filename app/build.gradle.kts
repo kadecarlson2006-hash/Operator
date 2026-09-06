@@ -4,6 +4,7 @@ import java.util.Properties
 plugins {
     id("com.android.application")             // versions: root build.gradle.kts classpath
     id("org.jetbrains.kotlin.plugin.compose")
+    id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 // Developer configuration comes from local.properties (git-ignored) or the environment.
