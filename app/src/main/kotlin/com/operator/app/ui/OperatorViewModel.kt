@@ -2,7 +2,6 @@ package com.operator.app.ui
 
 import android.content.Context
 import androidx.lifecycle.ViewModel
-import android.content.Context
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
