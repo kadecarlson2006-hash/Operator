@@ -162,7 +162,7 @@ fun Application.operatorModule(deps: BackendDependencies) {
     routing {
         get("/") { call.respond(mapOf("service" to "operator-backend", "version" to BACKEND_VERSION, "health" to "/health")) }
         healthRoutes(deps.health)
-        memoryRoutes(deps.memory, deps.config.demoSeedEnabled)
+        memoryRoutes(deps.memory, deps.config.demoSeedEnabled, deps.embeddings)
         aiRoutes(deps.ai, deps.modelRouter, deps.prompts, deps.usage, deps.config.promptVersion, deps.retrieval, deps.writeEngine)
         decisionRoutes(deps.decisionEngine, deps.usage)
         transcriptionRoutes(deps.transcription, deps.usage)
