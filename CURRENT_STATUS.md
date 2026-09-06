@@ -1,9 +1,8 @@
 # CURRENT STATUS — OPERATOR
 
-**Current milestone:** 12 — Response decision engine (implemented; on
-`claude/milestone-12-decision-engine`).
+**Current milestone:** 12 — Response decision engine (merged to `main`).
 
-**`main` contains Milestones 0 through 11.** Milestones 1 to 3 still await verification on real
+**`main` contains Milestones 0 through 12.** Milestones 1 to 3 still await verification on real
 hardware, and no live model, transcription, or TTS call has ever been made. Both gaps are listed
 below.
 
