@@ -13,7 +13,7 @@ transcription key, or both.
 
 | Stage | State |
 |-------|-------|
-| 1 - device checks (M1-M3) | **ready to run.** The app builds and launches on the Galaxy as of 2026-09-06. M1 and M2 need no keys; M3 needs a GitHub token (see below). Oldest unverified code in the project - start here. |
+| 1 - device checks (M1-M3) | **M1 and M2 done on the Galaxy.** Phone capture, A2DP and SCO playback, SCO capture, actual-route reporting, communication-device confirmation, and disconnect fallback passed on 2026-09-06. M3 needs a GitHub token (see below). |
 | 2 - first live model call | **done.** `deepseek/deepseek-v4-flash`, 2019 ms, $0.0000688. Risks 27, 28 closed. |
 | 3 - memory round trip | **done.** Stored free, recalled at semantic 0.62 with real embeddings. |
 | 4 - hearing | **unblocked** - key configured 2026-09-06. Needs the APK. Wire format still SDK-derived (risks 34, 35). |
@@ -46,13 +46,23 @@ come *down* rather than being tuned alone. Measure the whole path before moving 
    The chain memory -> retrieval -> decision -> response is proven against live providers. Re-run
    `.\scripts\decide-drill.ps1` after any prompt or threshold change: it is the cheapest
    regression check that needs no phone.
-2. **Stage 1 on the phone - do this next.** The app is installed and running; nothing else is
-   needed for M1 and M2. `CURRENT_STATUS.md` has the step lists. Milestone 1: GRANT MICROPHONE,
-   RECORD TEST, PLAY TEST, and check the reported devices are the ones expected. Milestone 2:
+2. ~~**Finish Stage 1 on the phone.**~~ **M1 and M2 done 2026-09-06.** Milestone 1 capture used
+   `SM-S908U1 (built-in mic)` via `MIC, system default routing`; the 4 s clip peaked at 40% and
+   played clearly through `RB Meta 01T8 (Bluetooth A2DP)` via `USAGE_MEDIA, system default
+   routing`. Android reported both actual routes and the app showed no error. For Milestone 2:
    GRANT BLUETOOTH, then A2DP output, SCO input, SCO output, then disconnect and confirm it falls
    back to DEFAULT. Record the SCO bring-up time and watch for `routedDevice was never reported`
    in the log, which would mean the phone is not telling us where audio actually went (risk 13).
-3. **Stage 4**, once the transcription key question below is answered.
+   SCO playback is already proven: with input and output set to `RB Meta 01T8 (Bluetooth SCO)`,
+   `USAGE_VOICE_COMMUNICATION via RB Meta 01T8` played clearly through the glasses with no error.
+   SCO capture also produced understandable audio with the same selected routes and no error; the
+   communication link took about 1 s to start. The route event log confirmed the glasses as the
+   active communication device and reported both capture and playback routed to the glasses.
+   `routedDevice` was therefore available (risk 13 did not occur). Disconnect reset both explicit
+   route selections to DEFAULT; the glasses reconnected immediately and Android then chose them
+   again as the default output, with the phone as default input.
+3. **Stage 4 hearing.** The transcription key is configured; restart the backend first because
+   `.env` is read once at startup.
 4. **Stage 5, then the phone half of stage 6.** In that order: Active Operator is only
    interpretable once speech out works.
 

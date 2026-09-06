@@ -3,14 +3,22 @@
 **Current milestone:** 13 — Active Operator (merged to `main`). Deciding on its own is off by
 default: see risk 49.
 
-**`main` contains Milestones 0 through 13.** Milestones 1 to 3 still await verification on real
-hardware. The **first live model call was made on 2026-09-06** and worked, as did memory retrieval
+**`main` contains Milestones 0 through 13.** Milestones 1 and 2 passed on the target Galaxy and
+Ray-Ban Meta on 2026-09-06; Milestone 3 still awaits the Meta SDK build. The **first live model call was made on 2026-09-06** and worked, as did memory retrieval
 with real embeddings; transcription and TTS have still never run against a real provider. Both gaps are listed below, and the running order
 for closing them is in [TESTING.md](TESTING.md).
 
-**Last updated:** 2026-09-05
+**Last updated:** 2026-09-06
 
 ## What works (verified)
+
+- **Phone and Bluetooth audio on the target hardware, 2026-09-06.** A 4 s loopback captured
+  clearly from the SM-S908U1 built-in microphone at 40% peak and played through the Ray-Ban Meta
+  over A2DP. Explicit Ray-Ban SCO capture and `USAGE_VOICE_COMMUNICATION` playback were also
+  clear. Samsung confirmed the communication device in about 1 s, and both `AudioRecord` and
+  `AudioTrack` reported the glasses as their actual routed device. Disconnecting the glasses
+  reset explicit SCO selections to DEFAULT; their immediate reconnect then restored Android's
+  normal phone-input/glasses-output default routing. No audio error occurred.
 
 - **Memory changes the decision, 2026-09-06.** The strongest result so far. The disputed-invoice
   conversation stayed silent with NO_CONFIRMED_FACT; with "the payment terms with Halvorsen Supply
@@ -143,8 +151,6 @@ for closing them is in [TESTING.md](TESTING.md).
   actual hearing/voice routes and whether Bluetooth endpoints are ready for the device check.
   This cannot establish Ray-Ban route reliability, Meta AI coexistence, or battery impact without
   the target phone and glasses.
-- Milestones 1–2: audio loopback, route selection, Bluetooth diagnostics (see earlier checklist
-  items below).
 - Milestone 3: `:glasses-meta` wraps the Meta Wearables Device Access Toolkit 0.9.0 behind
   `GlassesProvider`: SDK initialisation, registration with the Meta AI app, linked-device list
   with metadata, device session start/stop, camera-permission check, firmware-update link, and
