@@ -22,6 +22,7 @@ hikari = "7.1.0"
 postgresql = "42.7.13"
 flyway = "13.5.0"
 logback = "1.6.3"
+testcontainers = "2.0.5"
 # Meta Wearables Device Access Toolkit (GitHub Packages; needs a read:packages token — see README)
 mwdat = "0.9.0"
 
@@ -74,6 +75,8 @@ postgresql = { group = "org.postgresql", name = "postgresql", version.ref = "pos
 flyway-core = { group = "org.flywaydb", name = "flyway-core", version.ref = "flyway" }
 flyway-postgresql = { group = "org.flywaydb", name = "flyway-database-postgresql", version.ref = "flyway" }
 logback-classic = { group = "ch.qos.logback", name = "logback-classic", version.ref = "logback" }
+testcontainers-postgresql = { group = "org.testcontainers", name = "testcontainers-postgresql", version.ref = "testcontainers" }
+testcontainers-junit-jupiter = { group = "org.testcontainers", name = "testcontainers-junit-jupiter", version.ref = "testcontainers" }
 kotlin-serialization-gradlePlugin = { group = "org.jetbrains.kotlin", name = "kotlin-serialization", version.ref = "kotlin" }
 
 mwdat-core = { group = "com.meta.wearable", name = "mwdat-core", version.ref = "mwdat" }
