@@ -40,11 +40,12 @@ come *down* rather than being tuned alone. Measure the whole path before moving 
 
 ## Next actions, in order of value
 
-1. **Run the grounded invoice scenario.** `.\scripts\decide-drill.ps1` now seeds a memory and
-   re-asks the disputed-invoice conversation. The ungrounded run declined with
-   NO_VERIFIED_INFORMATION - want of knowledge, not irrelevance. If the grounded run speaks, the
-   memory -> retrieval -> decision chain is proven end to end. The script prints the comparison
-   and what it means. Cheap, and it is the single most informative call left that needs no phone.
+1. ~~Run the grounded invoice scenario.~~ **Done 2026-09-06, and it worked.** The same
+   conversation that was silent for want of grounding spoke once the terms were in memory, at
+   confidence 0.95 / relevance 0.9, and labelled the memory *as* memory rather than asserting it.
+   The chain memory -> retrieval -> decision -> response is proven against live providers. Re-run
+   `.\scripts\decide-drill.ps1` after any prompt or threshold change: it is the cheapest
+   regression check that needs no phone.
 2. **Stage 1 on the phone.** Independent of every key. Android Studio is installed;
    `.\gradlew.bat :app:assembleDebug` or build from the IDE.
 3. **Stage 4**, once the transcription key question below is answered.
@@ -82,6 +83,15 @@ is correct there.
 **Do not inline JSON into curl from PowerShell.** 5.1 and 7 disagree about how embedded double
 quotes reach a native executable. Write the body to a file and use `-d "@file.json"`, as TESTING.md
 does throughout.
+
+**Decision reason codes are model-authored free text.** The same scenario gave
+NO_VERIFIED_INFORMATION on one run and NO_CONFIRMED_FACT on the next. Read them, do not count or
+branch on them (risk 51). Only `ConversationPolicy`'s own codes - MUTED, RECENTLY_SPOKE,
+DECIDED_RECENTLY and the rest - are a fixed vocabulary.
+
+**`Export-Csv` defaults to ASCII on PowerShell 5.1**, which turned a curly apostrophe in
+Operator's output into `?`. Fixed in `decide-drill.ps1` with `-Encoding UTF8`; remember it
+anywhere else results get exported, since names and quoted speech hit it constantly.
 
 **Assertion argument order is inverted between modules.** `:core` and `:backend` use `kotlin.test`
 (message **last**); `:app` uses JUnit 4 (message **first**). This has caused CI failures three
