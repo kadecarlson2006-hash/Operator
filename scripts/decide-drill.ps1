@@ -235,7 +235,10 @@ Write-Host "  Check GET /usage for what the model calls cost." -ForegroundColor 
 Write-Host "  Judge the SPOKE lines yourself: was any of it worth hearing?" -ForegroundColor DarkGray
 
 if ($OutFile) {
-    $results | Export-Csv -NoTypeInformation -Path $OutFile
+    # -Encoding matters: Windows PowerShell 5.1 defaults Export-Csv to ASCII, which silently
+    # turns anything Operator says containing a curly apostrophe or an accented name into "?".
+    # The model's output was never wrong; the export was losing it.
+    $results | Export-Csv -NoTypeInformation -Encoding UTF8 -Path $OutFile
     Write-Host ("  Saved {0} rows to {1}" -f $results.Count, $OutFile) -ForegroundColor DarkGray
     Write-Host "  Review the paid decisions with:" -ForegroundColor DarkGray
     Write-Host ("    Import-Csv {0} | Where-Object {{ `$_.Cost -eq 'model' }} | Format-Table Scenario,Spoke,Reason,Confidence,Relevance,Suppressed,Ms -AutoSize" -f $OutFile) -ForegroundColor DarkGray

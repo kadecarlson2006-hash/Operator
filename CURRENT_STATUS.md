@@ -12,6 +12,16 @@ for closing them is in [TESTING.md](TESTING.md).
 
 ## What works (verified)
 
+- **Memory changes the decision, 2026-09-06.** The strongest result so far. The disputed-invoice
+  conversation stayed silent with NO_CONFIRMED_FACT; with "the payment terms with Halvorsen Supply
+  are net thirty" stored first, the *identical* conversation produced
+  "I have Halvorsen Supply's payment terms recorded as net thirty" - confidence 0.95, relevance
+  0.9. So the earlier silence was want of grounding rather than reticence, and the whole chain
+  (memory -> retrieval -> decision -> response) works against live providers. It also labelled the
+  memory **as** memory rather than asserting it as fact, which is the ContextAssembler rule
+  appearing unprompted in real output. `RECENTLY_SPOKE` then correctly refused the next ambient
+  call for free, exercising the comment interval that the first run never reached.
+
 - **The decision model keeps quiet, 2026-09-06.** `scripts/decide-drill.ps1` against
   `openai/gpt-5.6-luna`: **0 of 4** ambient scenarios spoke, six local refusals cost nothing, and
   `DECIDED_RECENTLY` correctly refused an immediate repeat for free. The important part is *why*
