@@ -73,6 +73,8 @@ data class OperatorActions(
     val onStartListening: () -> Unit = {},
     val onStopListening: () -> Unit = {},
     val onClearTranscripts: () -> Unit = {},
+    val onConsiderCommenting: () -> Unit = {},
+    val onClearDecision: () -> Unit = {},
 )
 
 @Composable
@@ -93,6 +95,7 @@ fun OperatorScreen(state: OperatorUiState, actions: OperatorActions) {
             WitPanel(state, actions)
             AskOperatorPanel(state, actions)
             ListenPanel(state, actions)
+            DecisionPanel(state, actions)
             TranscriptPanel(state, actions)
             GlassesAudioPanel(state)
             AudioTestPanel(state, actions)
@@ -515,6 +518,71 @@ private fun TranscriptPanel(state: OperatorUiState, actions: OperatorActions) {
     }
 }
 
+
+@Composable
+private fun DecisionPanel(state: OperatorUiState, actions: OperatorActions) {
+    val d = state.decision
+    ConsolePanel("Decision · Milestone 12") {
+        Text(
+            "Whether to say anything at all. Silence is the ordinary answer, and most of it is " +
+                "decided on the phone's own rules before a model is ever asked.",
+            style = MaterialTheme.typography.bodySmall,
+            color = OperatorColors.CreamDim,
+        )
+        Spacer(Modifier.height(10.dp))
+
+        if (d.decisions > 0) {
+            KeyValueRow(
+                "LAST",
+                if (d.shouldSpeak) "SPOKE" else "SILENT",
+                valueColor = if (d.shouldSpeak) OperatorColors.Amber else OperatorColors.CreamDim,
+            )
+            d.reasonCode?.let { KeyValueRow("REASON", it) }
+            d.category?.let { KeyValueRow("CATEGORY", it) }
+            KeyValueRow(
+                "COST",
+                if (d.gatedLocally) "free — refused locally" else "model call${d.model?.let { " ($it)" } ?: ""}",
+                valueColor = if (d.gatedLocally) OperatorColors.CreamDim else OperatorColors.Cream,
+            )
+            if (d.suppressedAfterModel) {
+                KeyValueRow("OVERRULED", "the model wanted to speak", OperatorColors.AmberDim)
+            }
+            if (d.modelCalled) {
+                KeyValueRow("SCORES", "confidence %.2f · relevance %.2f".format(d.confidence, d.relevance))
+                KeyValueRow("LATENCY", "${d.latencyMillis} ms", latencyColor(d.latencyMillis))
+            }
+            KeyValueRow("SPOKEN / DECIDED", "${d.spokenCount} / ${d.decisions}")
+            d.spoken?.let {
+                Spacer(Modifier.height(10.dp))
+                Text("SAID", style = MaterialTheme.typography.labelSmall, color = OperatorColors.AmberDim)
+                Text(it, style = MaterialTheme.typography.bodyMedium, color = OperatorColors.Cream)
+            }
+        } else {
+            Text("Nothing decided yet.", style = MaterialTheme.typography.bodyMedium, color = OperatorColors.CreamDim)
+        }
+
+        d.error?.let {
+            Spacer(Modifier.height(10.dp))
+            Text(it, style = MaterialTheme.typography.bodyMedium, color = OperatorColors.Alert)
+        }
+
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = actions.onConsiderCommenting,
+                enabled = !d.inFlight && !state.operator.muted,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = OperatorColors.Amber, contentColor = OperatorColors.Background),
+            ) { Text(if (d.inFlight) "DECIDING…" else "ANYTHING TO SAY?", style = MaterialTheme.typography.labelSmall) }
+            OutlinedButton(
+                onClick = actions.onClearDecision,
+                enabled = d.decisions > 0 || d.error != null,
+                modifier = Modifier.weight(1f),
+            ) { Text("CLEAR", style = MaterialTheme.typography.labelSmall) }
+        }
+    }
+}
+
 /** Latency targets from the brief: under 1 s ideal, 1–1.5 s good, over 3 s harms conversation. */
 private fun latencyColor(millis: Long?) = when {
     millis == null -> OperatorColors.Cream
@@ -731,7 +799,7 @@ private fun DiagnosticsPanel(state: OperatorUiState) {
         KeyValueRow("Record test length", "${c.recordTestDurationMillis} ms")
         KeyValueRow("Backend URL", c.backendUrl ?: "— (set OPERATOR_BACKEND_URL)")
         KeyValueRow("AI model (last answer)", state.ask.model ?: "— (ask something)")
-        KeyValueRow("Decision model", c.decisionModelId ?: "— (Milestone 12)")
+        KeyValueRow("Decision model", c.decisionModelId ?: "— (falls back to the fast model)")
         KeyValueRow("TTS provider", c.ttsProvider ?: "— (set OPERATOR_TTS_PROVIDER)")
         KeyValueRow("Voice ID", c.elevenLabsVoiceId ?: "— (Milestone 9)")
         KeyValueRow("Glasses", "— (Milestone 3)")

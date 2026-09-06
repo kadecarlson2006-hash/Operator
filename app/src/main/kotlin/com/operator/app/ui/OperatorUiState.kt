@@ -4,6 +4,7 @@ import com.operator.app.audio.AudioRoutes
 import com.operator.app.backend.AskState
 import com.operator.app.backend.SpeechState
 import com.operator.app.bluetooth.BluetoothStatus
+import com.operator.app.decision.DecisionState
 import com.operator.app.transcription.ListenState
 import com.operator.core.transcription.TranscriptEntry
 import com.operator.core.audio.AudioLoopbackState
@@ -31,6 +32,8 @@ data class OperatorUiState(
     val listen: ListenState = ListenState(),
     /** Milestone 11: the rolling conversation window, oldest first. In memory only. */
     val transcript: List<TranscriptEntry> = emptyList(),
+    /** Milestone 12: what the decision stage last decided, and why. */
+    val decision: DecisionState = DecisionState(),
     val glasses: GlassesState = GlassesState(providerName = "none", sdkPresent = false),
     val glassesActions: List<GlassesAction> = emptyList(),
     /** Short description of the last state event, for the diagnostics card. */

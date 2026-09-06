@@ -12,6 +12,7 @@ import com.operator.app.backend.SpeechController
 import com.operator.app.audio.CommunicationLink
 import com.operator.app.audio.ContinuousMicrophone
 import com.operator.app.audio.GlassesAudioCoordinator
+import com.operator.app.decision.DecisionController
 import com.operator.app.transcription.ListenController
 import com.operator.core.transcription.RollingTranscript
 import com.operator.app.bluetooth.BluetoothStatusMonitor
@@ -77,7 +78,11 @@ class OperatorContainer(app: Application) {
         recordDurationMillis = config.recordTestDurationMillis,
     )
 
-    /** Placeholder until Milestone 12. Always NO_RESPONSE. */
+    /**
+     * The phone holds no decision engine of its own: the judgement needs a model, and the model
+     * needs a credential, so it lives on the backend behind POST /decide (ADR-005). This stays as
+     * the honest local answer for anything that asks without going through [decision].
+     */
     val decisionEngine: ResponseDecisionEngine = SilentDecisionEngine
 
     /**
@@ -119,6 +124,18 @@ class OperatorContainer(app: Application) {
         appScope,
         selectionSupplier = { loopback.state.value.selection },
         audioAllowed = { stateManager.current.let { !it.muted && it.isProcessing } },
+    )
+
+    /**
+     * Milestone 12: whether Operator says anything at all. Speech goes through the coordinator so
+     * a decision cannot barge in while Operator is already speaking, or while muted.
+     */
+    val decision = DecisionController(
+        backend = backendClient,
+        transcript = transcript,
+        scope = appScope,
+        speak = { text -> glassesAudio.speak(text) },
+        stateSupplier = { stateManager.current.let { Triple(it.mode, it.wit, it.muted) } },
     )
 
     /** Meta Wearables toolkit when compiled in, otherwise an honest no-op (ADR-004 / ADR-013). */

@@ -70,6 +70,16 @@ class ListenControllerTest {
             transcript: List<String>,
         ): AskResponse = throw UnsupportedOperationException("this fake only transcribes")
 
+        override suspend fun decide(
+            trigger: String,
+            transcript: List<String>,
+            mode: String?,
+            wit: String?,
+            recentComments: List<String>,
+            muted: Boolean,
+            sessionId: String?,
+        ) = throw UnsupportedOperationException("this fake does not decide")
+
         override suspend fun transcribe(pcm: ByteArray, sampleRateHz: Int, channels: Int, sessionId: String?): TranscribeResponse {
             uploads += pcm
             lastSampleRate = sampleRateHz

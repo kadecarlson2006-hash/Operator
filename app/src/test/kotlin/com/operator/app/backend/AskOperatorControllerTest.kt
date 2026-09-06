@@ -38,6 +38,15 @@ class AskOperatorControllerTest {
 
         override suspend fun transcribe(pcm: ByteArray, sampleRateHz: Int, channels: Int, sessionId: String?) =
             throw UnsupportedOperationException("this fake only answers text questions")
+        override suspend fun decide(
+            trigger: String,
+            transcript: List<String>,
+            mode: String?,
+            wit: String?,
+            recentComments: List<String>,
+            muted: Boolean,
+            sessionId: String?,
+        ) = throw UnsupportedOperationException("this fake does not decide")
     }
 
     private val answer = AskResponse(

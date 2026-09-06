@@ -1,7 +1,7 @@
 # CURRENT STATUS — OPERATOR
 
-**Current milestone:** 9, 10 and 11 integrated — speech out, glasses audio, and rolling
-transcription now share one microphone path.
+**Current milestone:** 12 — Response decision engine (implemented; on
+`claude/milestone-12-decision-engine`).
 
 **`main` contains Milestones 0 through 11.** Milestones 1 to 3 still await verification on real
 hardware, and no live model, transcription, or TTS call has ever been made. Both gaps are listed
@@ -11,6 +11,13 @@ below.
 
 ## What works (verified)
 
+- Milestone 12: the decision stage. `ConversationPolicy` refuses locally — on mute, OFF, modes
+  that never volunteer, an empty transcript, the comment interval and the five-minute cap —
+  before any model is asked, so a refused moment costs nothing. What survives goes to the
+  decision model, and what the model returns is reviewed by the same rules: confidence and
+  relevance floors for unprompted comments, three sentences maximum, and no repeating itself.
+  Every failure is silence. `POST /decide` reports the outcome, whether it was free, and whether
+  the model was overruled. COMMENT NOW now actually asks. 42 new tests.
 - Milestone 11: rolling transcription. `RollingTranscript` holds the last
   `ROLLING_CONTEXT_SECONDS` of conversation in memory, bounded by age and by entry
   count and pruned on read as well as on write. Transcripts join it as they arrive;
@@ -125,9 +132,9 @@ registration, and mock testing.
 - Listening is still started by hand: the user presses START LISTENING. It now continues in the
   background until stopped, but Operator never decides on its own to start.
 - Operator's own replies never reach the rolling window: nothing speaks yet (Milestone 9).
-- Ambient retrieval is still not wired: retrieval runs for typed questions only. The rolling
-  transcript now exists, but nothing decides on its own when to use it — that is the decision
-  engine (Milestone 12).
+- Nothing decides on its own *when* to consider speaking: the decision runs when the user presses
+  a button, not when new speech arrives. Firing it automatically is Milestone 13, and is
+  deliberately held until the thresholds have been tuned against a real conversation (risks 44-45).
 - No authentication (single default user, ADR-021).
 - Camera streaming/photo (Milestone 16), rolling context, decision
   engine, BLE ring, integrations.
@@ -175,6 +182,14 @@ conversation panel (risk 38) → tap STOP on the notification and confirm the mi
 ask a question in the Ask Operator panel and check "Conversation sent" reports the lines →
 FORGET WHAT WAS SAID empties the panel and the next question sends 0 lines → leave it running an
 hour and note battery drain and the `GET /usage` transcription spend (risks 39-41).
+
+Milestone 12 (deciding): configure `OPERATOR_DECISION_MODEL_ID` → talk for a minute with
+listening on → ANYTHING TO SAY? → expect SILENT far more often than SPOKE, and check the REASON
+and whether it was free or a model call → press it twice quickly and confirm the second is
+refused as RECENTLY_SPOKE → set mode to QUIET and confirm it is refused free, without a model
+call → mute and confirm COMMENT NOW is refused → the real question is whether the model stays
+quiet in an ordinary conversation (risk 43); if it chatters, the prompt and the floors need work
+before ambient deciding is wired up.
 
 Milestone 3 (Meta SDK): follow the device test plan in `docs/META_GLASSES.md` (register,
 device list, session start/stop, camera permission, mock kit) and record the glasses' reported

@@ -14,7 +14,8 @@ operator/
 │       │                 VoiceActivityDetector, SpeechSegmenter, WavEncoder (Milestone 8)
 │       ├── diagnostics   LatencyTimeline, DiagnosticsSnapshot, RouteEventLog
 │       ├── glasses       GlassesProvider contract, GlassesState, NoGlassesProvider (Milestone 3)
-│       ├── decision      ResponseCategory, ResponseDecision, ResponseDecisionEngine, SilentDecisionEngine
+│       ├── decision      ResponseCategory, ResponseDecision, ResponseDecisionEngine,
+│       │                 SilentDecisionEngine, ConversationPolicy (Milestone 12)
 │       ├── ai            AIProvider contract            (Milestone 6)
 │       ├── tts           TTSProvider contract           (Milestone 9)
 │       ├── transcription TranscriptionProvider contract (Milestone 8),
@@ -28,6 +29,7 @@ operator/
 │       ├── memory        MemoryStore contract, PostgresMemoryStore (JDBC + pgvector),
 │       │                 InMemoryMemoryStore, MemoryRoutes, DemoMemories (Milestone 5)
 │       ├── transcription OpenAiCompatibleTranscriptionProvider, POST /transcribe (Milestone 8)
+│       ├── decision      ModelDecisionEngine, POST /decide (Milestone 12)
 │       └── providers     ProviderRegistry — AI (M6), transcription (M8), TTS (M9) slots
 ├── glasses-meta/  optional Android library — the only module importing com.meta.wearable.dat.*
 │   └── com.operator.glasses.meta   MetaGlassesManager, MetaGlassesProviderFactory, MetaCapabilities
@@ -41,6 +43,7 @@ operator/
         │                 AndroidAudioRecorder, AndroidAudioPlayer, AudioSubsystemReporter,
         │                 MicrophoneSource port + ContinuousMicrophone (Milestone 8),
         │                 PcmCapture (AudioRecord setup shared by both capture paths)
+        ├── decision      DecisionController — asks whether to speak, speaks it (Milestone 12)
         ├── transcription ListenController — mic → VAD → utterance → backend (Milestone 8),
         │                 TranscriptionService — foreground service, mic type (Milestone 11)
         ├── bluetooth     BluetoothStatusMonitor (adapter state, paired devices)
