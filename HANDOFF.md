@@ -16,7 +16,7 @@ transcription key, or both.
 | 1 - device checks (M1-M3) | **not started.** Needs the APK on the Galaxy. Oldest unverified code in the project. |
 | 2 - first live model call | **done.** `deepseek/deepseek-v4-flash`, 2019 ms, $0.0000688. Risks 27, 28 closed. |
 | 3 - memory round trip | **done.** Stored free, recalled at semantic 0.62 with real embeddings. |
-| 4 - hearing | **blocked**, see "the transcription key question" below. |
+| 4 - hearing | **unblocked** - key configured 2026-09-06. Needs the APK. Wire format still SDK-derived (risks 34, 35). |
 | 5 - voice and glasses | **not started.** Needs the APK and ElevenLabs. |
 | 6 - deciding | **backend half done.** 0 of 4 ambient scenarios spoke. Phone half not started. |
 
@@ -52,20 +52,20 @@ come *down* rather than being tuned alone. Measure the whole path before moving 
 4. **Stage 5, then the phone half of stage 6.** In that order: Active Operator is only
    interpretable once speech out works.
 
-## The transcription key question - decide before stage 4
+## The transcription key question - DECIDED 2026-09-06
 
 `.env` currently has `OPERATOR_TRANSCRIPTION_BASE_URL=https://openrouter.ai/api/v1` and
 `OPERATOR_TRANSCRIPTION_MODEL_ID=openai/whisper-large-v3-turbo`, but `TRANSCRIPTION_API_KEY` is
 null. The backend reads that key separately and **will not** fall back to `OPENROUTER_API_KEY`.
 
-Two ways forward, and this is a decision, not a bug:
+**Resolved by configuration: `TRANSCRIPTION_API_KEY` is set to the same OpenRouter key.** No
+code change, and none is wanted - the alternative was to make the key fall back when the base URL
+matches the model provider's host, which couples two settings that ADR-005 keeps deliberately
+separate. Transcription may yet move to a different vendor, and the separate variable is what
+makes that a one-line change. Do not implement the fallback unless the user asks.
 
-- Set `TRANSCRIPTION_API_KEY` to the same OpenRouter key. Nothing to build.
-- Or make the key fall back when the base URL is the same host as the model provider. Tidier for
-  a single-vendor setup, but it couples two settings that are deliberately separate (ADR-005 keeps
-  provider credentials independent, and transcription may well be a different vendor).
-
-Do the first to unblock testing. Only do the second if the user asks for it.
+Stage 4 is therefore unblocked and needs only the APK. Note the backend must be restarted after
+editing `.env`; config is read once at startup.
 
 ## Traps that have already cost time
 
