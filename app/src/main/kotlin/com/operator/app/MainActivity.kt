@@ -108,6 +108,7 @@ private fun OperatorRoot(viewModel: OperatorViewModel, activity: Activity) {
             onClearTranscripts = viewModel::clearTranscripts,
             onConsiderCommenting = viewModel::considerCommenting,
             onClearDecision = viewModel::clearDecision,
+            onSendFeedback = viewModel::sendFeedback,
             onSetAmbient = viewModel::setAmbient,
         )
     }

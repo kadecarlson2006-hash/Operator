@@ -75,6 +75,8 @@ data class OperatorActions(
     val onClearTranscripts: () -> Unit = {},
     val onConsiderCommenting: () -> Unit = {},
     val onClearDecision: () -> Unit = {},
+    /** Milestone 14: HELPFUL, UNWANTED, WRONG or TOO_LATE about the comment on screen. */
+    val onSendFeedback: (String) -> Unit = {},
     val onSetAmbient: (Boolean) -> Unit = {},
 )
 
@@ -557,6 +559,44 @@ private fun DecisionPanel(state: OperatorUiState, actions: OperatorActions) {
                 Spacer(Modifier.height(10.dp))
                 Text("SAID", style = MaterialTheme.typography.labelSmall, color = OperatorColors.AmberDim)
                 Text(it, style = MaterialTheme.typography.bodyMedium, color = OperatorColors.Cream)
+
+                // Milestone 14. Only what was actually said can be judged, which is why this sits
+                // inside `d.spoken` rather than beside the decision counters.
+                Spacer(Modifier.height(8.dp))
+                if (d.feedbackSent != null) {
+                    Text(
+                        when (d.feedbackSent) {
+                            "HELPFUL" -> "Marked helpful. Approval does not make Operator speak more."
+                            else -> "Noted. Operator will be harder to trigger for a while."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = OperatorColors.AmberDim,
+                    )
+                } else {
+                    Text("WAS THAT WORTH SAYING?", style = MaterialTheme.typography.labelSmall, color = OperatorColors.AmberDim)
+                    Spacer(Modifier.height(6.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OutlinedButton(
+                            onClick = { actions.onSendFeedback("HELPFUL") },
+                            modifier = Modifier.weight(1f),
+                        ) { Text("HELPFUL", style = MaterialTheme.typography.labelSmall) }
+                        OutlinedButton(
+                            onClick = { actions.onSendFeedback("UNWANTED") },
+                            modifier = Modifier.weight(1f),
+                        ) { Text("DIDN'T WANT", style = MaterialTheme.typography.labelSmall) }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OutlinedButton(
+                            onClick = { actions.onSendFeedback("WRONG") },
+                            modifier = Modifier.weight(1f),
+                        ) { Text("WRONG", style = MaterialTheme.typography.labelSmall) }
+                        OutlinedButton(
+                            onClick = { actions.onSendFeedback("TOO_LATE") },
+                            modifier = Modifier.weight(1f),
+                        ) { Text("TOO LATE", style = MaterialTheme.typography.labelSmall) }
+                    }
+                }
             }
         } else {
             Text("Nothing decided yet.", style = MaterialTheme.typography.bodyMedium, color = OperatorColors.CreamDim)

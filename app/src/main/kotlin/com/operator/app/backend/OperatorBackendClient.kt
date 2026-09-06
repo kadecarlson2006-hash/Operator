@@ -106,6 +106,27 @@ private data class DecideRequest(
     val sessionId: String? = null,
 )
 
+/** Milestone 14: what the user thought of something Operator said. */
+@Serializable
+data class FeedbackRequest(
+    val comment: String,
+    val verdict: String,
+    val trigger: String = "AMBIENT",
+    val confidence: Float = 0f,
+    val relevance: Float = 0f,
+    val category: String? = null,
+    val sessionId: String? = null,
+)
+
+@Serializable
+data class FeedbackResponse(
+    val id: String = "",
+    val verdict: String = "",
+    /** How much the floors are now raised. Shown so the effect of a tap is visible, not magic. */
+    val penalty: Float = 0f,
+    val note: String = "",
+)
+
 /** A failed backend call, already phrased for the user. */
 class BackendException(message: String) : Exception(message)
 
@@ -141,6 +162,20 @@ interface OperatorBackend {
         muted: Boolean = false,
         sessionId: String? = null,
     ): DecideResponse
+
+    /**
+     * Records what the user thought of a comment (Milestone 14). The backend decides what to do
+     * with it; the phone only reports the verdict and the scores the comment carried.
+     */
+    suspend fun sendFeedback(
+        comment: String,
+        verdict: String,
+        trigger: String = "AMBIENT",
+        confidence: Float = 0f,
+        relevance: Float = 0f,
+        category: String? = null,
+        sessionId: String? = null,
+    ): FeedbackResponse = throw BackendException("This backend does not accept feedback")
 
     fun close() = Unit
 }
@@ -309,6 +344,44 @@ class OperatorBackendClient(private val baseUrl: String?) : OperatorBackend, Ope
             throw e
         } catch (e: Exception) {
             throw BackendException("Unreadable decision response: ${e.message}")
+        }
+    }
+
+    override suspend fun sendFeedback(
+        comment: String,
+        verdict: String,
+        trigger: String,
+        confidence: Float,
+        relevance: Float,
+        category: String?,
+        sessionId: String?,
+    ): FeedbackResponse {
+        val base = baseUrl?.trimEnd('/')
+            ?: throw BackendException("No backend URL configured. Set OPERATOR_BACKEND_URL in local.properties.")
+        val response = try {
+            client.post("$base/feedback") {
+                contentType(ContentType.Application.Json)
+                setBody(FeedbackRequest(comment, verdict, trigger, confidence, relevance, category, sessionId))
+            }
+        } catch (e: CancellationException) {
+            // Rethrown rather than reported as a network fault, per 0969620: a cancelled request
+            // is the user changing their mind, not the backend being unreachable.
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Backend unreachable", e)
+            throw BackendException("Backend unreachable at $base (${e.message ?: e::class.simpleName})")
+        }
+        val text = response.bodyAsText()
+        if (response.status.value !in 200..299) {
+            val message = runCatching { json.parseToJsonElement(text).jsonObject["error"]?.jsonPrimitive?.content }.getOrNull()
+            throw BackendException("Feedback ${response.status.value}: ${message ?: text.take(200)}")
+        }
+        return try {
+            response.body<FeedbackResponse>()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            throw BackendException("Unreadable feedback response: ${e.message}")
         }
     }
 

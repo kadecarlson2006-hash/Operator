@@ -162,6 +162,14 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
     fun clearDecision() = container.decision.clear()
 
     /**
+     * Milestone 14: tells the backend what the user thought of the comment on screen.
+     *
+     * Whether a verdict changes anything is the backend's business — the phone reports what
+     * happened and does not decide what it means (ADR-045).
+     */
+    fun sendFeedback(verdict: String) = container.decision.sendFeedback(verdict)
+
+    /**
      * Milestone 13: lets Operator decide on its own when to consider speaking. Muting stops it,
      * and it stays off across restarts — this is not a setting that should quietly persist itself
      * into a room nobody expected it in.

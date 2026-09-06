@@ -36,6 +36,10 @@ data class DecisionState(
     val decisions: Int = 0,
     val spokenCount: Int = 0,
     val error: String? = null,
+    /** Milestone 14: the trigger that produced [spoken], so a verdict can be attributed. */
+    val trigger: String? = null,
+    /** Set once a verdict has been sent about the current comment, so it cannot be sent twice. */
+    val feedbackSent: String? = null,
 )
 
 /**
@@ -83,7 +87,7 @@ class DecisionController(
                     muted = muted,
                     sessionId = sessionId,
                 )
-                apply(decision)
+                apply(decision, trigger)
             } catch (e: CancellationException) {
                 _state.update { it.copy(inFlight = false) }
                 throw e
@@ -101,7 +105,44 @@ class DecisionController(
         _state.value = DecisionState()
     }
 
-    private fun apply(decision: DecideResponse) {
+    /**
+     * Tells the backend what the user thought of the comment currently on screen (Milestone 14).
+     *
+     * Only what Operator actually said can be judged: a decision that was refused locally never
+     * reached the user's ears, and a verdict on it would be about a thing that did not happen.
+     * Feedback is fire-and-forget - a failed send leaves the buttons live to try again rather
+     * than surfacing an error over a comment the user has already moved past.
+     */
+    fun sendFeedback(verdict: String) {
+        val current = _state.value
+        val comment = current.spoken?.takeIf { it.isNotBlank() } ?: return
+        if (current.feedbackSent != null) return
+
+        // Optimistic: the tap is acknowledged immediately, because the point of the buttons is
+        // that reacting to Operator is cheap.
+        _state.update { it.copy(feedbackSent = verdict) }
+        scope.launch {
+            try {
+                backend.sendFeedback(
+                    comment = comment,
+                    verdict = verdict,
+                    trigger = current.trigger ?: "AMBIENT",
+                    confidence = current.confidence,
+                    relevance = current.relevance,
+                    category = current.category,
+                    sessionId = sessionId,
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Feedback not recorded", e)
+                // Put the buttons back rather than claiming a verdict was stored that was not.
+                _state.update { if (it.spoken == comment) it.copy(feedbackSent = null) else it }
+            }
+        }
+    }
+
+    private fun apply(decision: DecideResponse, trigger: String) {
         val text = decision.response?.takeIf { decision.shouldSpeak && it.isNotBlank() }
         // Speech can still be refused downstream — muted, already speaking, no TTS configured — so
         // a decision to speak is not the same as having spoken.
@@ -122,6 +163,9 @@ class DecisionController(
                 model = decision.model,
                 suppressedAfterModel = decision.suppressedAfterModel,
                 latencyMillis = decision.latencyMillis,
+                trigger = trigger,
+                // A new decision is a new thing to judge, so any earlier verdict stops applying.
+                feedbackSent = null,
                 decisions = it.decisions + 1,
                 spokenCount = it.spokenCount + if (actuallySpoke) 1 else 0,
                 error = if (text != null && !actuallySpoke) "Decided to speak, but speech was refused." else null,
