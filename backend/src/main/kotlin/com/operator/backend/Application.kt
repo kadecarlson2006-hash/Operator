@@ -52,7 +52,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import org.slf4j.LoggerFactory
 
-const val BACKEND_VERSION = "0.12.0-m12"
+const val BACKEND_VERSION = "0.13.0-m13"
 
 /** Everything the server needs, built once at startup and replaceable with fakes in tests. */
 class BackendDependencies(

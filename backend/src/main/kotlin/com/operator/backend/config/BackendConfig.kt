@@ -73,16 +73,38 @@ data class BackendConfig(
         }
 
         /**
-         * Real environment first, then `OPERATOR_ENV_FILE` (default `.env` in the working directory).
-         * Values from the file never override real environment variables.
+         * Real environment first, then an `.env` file. Values from the file never override real
+         * environment variables.
+         *
+         * The file is searched for from the working directory upwards, because the working
+         * directory is not where anyone thinks it is: `gradle :backend:run` starts the JVM in
+         * `backend/`, while the README (correctly) tells you to put `.env` in the repo root.
+         * Looking only in the working directory meant the file was silently ignored and every
+         * provider reported itself unconfigured with nothing to explain why. `OPERATOR_ENV_FILE`
+         * still wins outright when set. Mirrors how PromptLibrary finds prompts.
          */
         fun fromEnvironment(env: Map<String, String> = System.getenv()): BackendConfig {
-            val file = File(env[Keys.ENV_FILE] ?: ".env")
+            val explicit = env[Keys.ENV_FILE]?.let(::File)
+            val file = explicit ?: findEnvFile()
             val merged = LinkedHashMap<String, String?>()
-            merged.putAll(EnvFile.load(file))
+            merged.putAll(EnvFile.load(file ?: File(".env")))
             merged.putAll(env)
-            return fromMap(merged)
+            return fromMap(merged).also { loadedEnvFile = file?.takeIf { f -> f.isFile }?.absolutePath }
         }
+
+        /** Absolute path of the `.env` actually read, or null when none was found. For startup logging. */
+        @Volatile
+        var loadedEnvFile: String? = null
+            private set
+
+        /** `.env` in the working directory or any parent, nearest first. */
+        internal fun findEnvFile(start: File = File(".").absoluteFile): File? =
+            generateSequence(start) { it.parentFile }
+                .take(MAX_ENV_SEARCH_DEPTH)
+                .map { File(it, ".env") }
+                .firstOrNull { it.isFile }
+
+        private const val MAX_ENV_SEARCH_DEPTH = 6
 
         private fun mask(secret: String?): String? = when {
             secret.isNullOrBlank() -> null

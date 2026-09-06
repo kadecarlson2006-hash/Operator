@@ -82,6 +82,8 @@ the comment in `build.gradle.kts`.)
 
 ```bash
 cp .env.example .env                                   # fill in keys later; DATABASE_URL matches compose
+                                                       # .env is found from the repo root or any
+                                                       # subdirectory; startup logs which file it read
 docker compose -f backend/docker-compose.yml up -d     # PostgreSQL 17 + pgvector 0.8.6 on :5432
 ./gradlew :backend:run -Poperator.skipAndroid=true     # http://localhost:8080
 curl -s localhost:8080/health                          # 200 "ok" with pgvector version; 503 "degraded" if the DB is down
@@ -205,6 +207,16 @@ Configuration comes from real environment variables first, then `.env`
 5. No glasses at hand: **MOCK: ENABLE KIT** → **PAIR RAY-BAN META** → **POWER ON + UNFOLD + DON**.
 6. The capability table at the bottom of the panel is the SUPPORTED / UNSUPPORTED / UNKNOWN
    verdict from `docs/META_GLASSES.md`.
+
+## Before a test session
+
+```powershell
+.\scripts\preflight.ps1
+```
+
+Checks `.env` is in place and not tracked, brings up the database, and reads the backend's own
+`/health` to report which provider slots are actually configured and what to set for the rest.
+Run it instead of guessing why nothing happens on the phone.
 
 ## Configuration
 
