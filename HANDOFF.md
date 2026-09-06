@@ -8,16 +8,16 @@ the rules that are not negotiable.
 
 ## Where testing got to
 
-Stages 1-3 and the backend half of stage 6 are done. What is left needs the phone, a
-transcription key, or both.
+Stages 2 and 3, M1/M2 from stage 1, and the backend half of stage 6 are done. Stage 4 is
+partially complete. What remains needs the phone or further device setup.
 
 | Stage | State |
 |-------|-------|
-| 1 - device checks (M1-M3) | **M1 and M2 done on the Galaxy.** Phone capture, A2DP and SCO playback, SCO capture, actual-route reporting, communication-device confirmation, and disconnect fallback passed on 2026-09-06. M3 needs a GitHub token (see below). |
+| 1 - device checks (M1-M3) | **M1 and M2 done on the Galaxy.** Phone capture, A2DP and SCO playback, SCO capture, actual-route reporting, communication-device confirmation, and disconnect fallback passed on 2026-09-06. The GitHub token is now present and the installed APK includes `:glasses-meta`; M3 is ready when the phone reconnects. |
 | 2 - first live model call | **done.** `deepseek/deepseek-v4-flash`, 2019 ms, $0.0000688. Risks 27, 28 closed. |
 | 3 - memory round trip | **done.** Stored free, recalled at semantic 0.62 with real embeddings. |
-| 4 - hearing | **unblocked** - key configured 2026-09-06. Needs the APK. Wire format still SDK-derived (risks 34, 35). |
-| 5 - voice and glasses | **not started.** Needs the APK and ElevenLabs. |
+| 4 - hearing | **partially done.** OpenRouter transcription works live. About 45 s of silence produced zero backend calls; speech transcribed with middling accuracy; STOP produced no late transcript or error. Controlled phone-vs-SCO accuracy and noisy-room checks remain. |
+| 5 - voice and glasses | **not started as a deliberate test.** A TTS request did return 200 in 1046 ms while testing Ask, but playback, first-audio timing, STOP, and half-duplex were not recorded. |
 | 6 - deciding | **backend half done.** 0 of 4 ambient scenarios spoke. Phone half not started. |
 
 Numbers and reason codes are in `CURRENT_STATUS.md` under "What works (verified)"; every risk
@@ -61,16 +61,21 @@ come *down* rather than being tuned alone. Measure the whole path before moving 
    `routedDevice` was therefore available (risk 13 did not occur). Disconnect reset both explicit
    route selections to DEFAULT; the glasses reconnected immediately and Android then chose them
    again as the default output, with the phone as default input.
-3. **Stage 4 hearing.** The transcription key is configured; restart the backend first because
-   `.env` is read once at startup.
-4. **Stage 5, then the phone half of stage 6.** In that order: Active Operator is only
+3. **Finish Stage 4 hearing.** Reconnect the phone, set INPUT to DEFAULT, clear the Listen panel,
+   and say exactly `The blue package arrives Friday at seven thirty.` Record the exact transcript
+   and round trip. Repeat the identical sentence with INPUT set to `RB Meta 01T8 (Bluetooth SCO)`
+   and compare accuracy. Then repeat in a noisy room and confirm the gate does not latch open.
+   The privacy and STOP checks already passed; details are below.
+4. **Run M3**, since `github_token` is now present and the APK built with `:glasses-meta`.
+5. **Stage 5, then the phone half of stage 6.** In that order: Active Operator is only
    interpretable once speech out works.
 
 ## The transcription key question - DECIDED 2026-09-06
 
-`.env` currently has `OPERATOR_TRANSCRIPTION_BASE_URL=https://openrouter.ai/api/v1` and
-`OPERATOR_TRANSCRIPTION_MODEL_ID=openai/whisper-large-v3-turbo`, but `TRANSCRIPTION_API_KEY` is
-null. The backend reads that key separately and **will not** fall back to `OPENROUTER_API_KEY`.
+At the original handoff, `.env` had `OPERATOR_TRANSCRIPTION_BASE_URL=https://openrouter.ai/api/v1`
+and `OPERATOR_TRANSCRIPTION_MODEL_ID=openai/whisper-large-v3-turbo`, but
+`TRANSCRIPTION_API_KEY` was empty. The backend reads that key separately and **will not** fall
+back to `OPENROUTER_API_KEY`.
 
 **Resolved by configuration: `TRANSCRIPTION_API_KEY` is set to the same OpenRouter key.** No
 code change, and none is wanted - the alternative was to make the key fall back when the base URL
@@ -80,6 +85,51 @@ makes that a one-line change. Do not implement the fallback unless the user asks
 
 Stage 4 is therefore unblocked and needs only the APK. Note the backend must be restarted after
 editing `.env`; config is read once at startup.
+
+The first phone `ASK OPERATOR` attempt exposed a missing serialization compiler plugin in `:app`:
+`AskRequest` had `@Serializable`, but no serializer was generated. The plugin and a regression
+test were added, the fixed APK was installed, and a live phone request then succeeded. The
+configured `.env` also still had an empty `TRANSCRIPTION_API_KEY` despite the earlier note; it was
+filled from the existing OpenRouter key as decided above, the backend was restarted, and `/health`
+now reports the OpenRouter transcription provider configured.
+
+## Codex continuation on 2026-09-06
+
+Two Android defects were found and fixed on the phone:
+
+- `AskRequest` had `@Serializable`, but `:app` did not apply
+  `org.jetbrains.kotlin.plugin.serialization`. ASK OPERATOR failed locally with `Serializer for
+  class 'AskRequest' is not found`. The plugin and a regression test were added; the fixed APK was
+  built, installed, and a live phone -> backend -> model request then succeeded.
+- `OperatorBackendClient` caught `CancellationException` as a generic network exception. Stopping
+  listening while a transcription was in flight therefore displayed `Backend unreachable ...
+  StandaloneCoroutine was cancelled` even though the backend was healthy. All request/response
+  paths now preserve cancellation. The rebuilt APK was installed; STOP LISTENING midway through
+  a sentence then produced no late transcript, no error, and status Idle.
+
+Stage 4 evidence after the cancellation fix: the detector's learning phase is only 8 x 20 ms =
+160 ms, so it went from START LISTENING to Listening too quickly for the user to see. The backend
+usage counter was zero at start and stayed at zero through about 45 s of silence, proving the
+privacy gate on this quiet-room run. After speech began, OpenRouter completed 11 transcription
+requests with zero failures and 682 ms average provider latency. The user described accuracy as
+"halfway decent, not the best"; no controlled reference sentence has been captured yet.
+
+Local `main` contains these unpushed commits:
+
+- `696eaf5` - record Galaxy and Ray-Ban audio tests
+- `aaec7d7` - generate Android backend serializers and test them
+- `0969620` - preserve backend request cancellation
+
+The docs handoff update follows those commits. `:app:testDebugUnitTest`, `:app:assembleDebug`, and
+`:app:installDebug` passed from `C:\Users\Vector\Operator`; Gradle reported installation on
+`SM-S908U1 - 16`. Pushing `main` from the Codex shell failed with
+`SEC_E_NO_CREDENTIALS`; `origin/main` therefore remains at `ee1a7a1` until a user-authenticated
+shell pushes the local commits.
+
+The Android Studio checkout at `C:\Users\Vector\Operator` intentionally also contains the two app
+fixes so the installed APK could be built. It has other pre-existing local changes and drill CSVs;
+do not reset or commit that checkout wholesale. Port only the app changes above or use the commits
+from this Codex worktree.
 
 ## The phone is set up
 
@@ -99,10 +149,9 @@ needed no code changes. Building from the command line also works:
   Changing them there changes nothing but the readout. `OPERATOR_EMBEDDING_MODEL_ID` is not read
   by the app at all.
 
-`github_token` is still empty, so `:glasses-meta` is not compiled in and the Glasses panel reads
-"not compiled in". That blocks **Milestone 3 only**. To enable it: a *classic* GitHub token with
-`read:packages` and nothing else, into `local.properties`, then re-sync. Milestones 1, 2, and
-stages 4 and 5 do not need it.
+`github_token` is now present in `local.properties`, and the latest build compiled and packaged
+`:glasses-meta`. Do not print or commit the token. M3 is ready after the phone is reconnected;
+Milestones 1, 2, and stages 4 and 5 do not depend on it.
 
 The user had not used Android Studio before this session. Sync after any `local.properties`
 change: **File -> Sync Project with Gradle Files**, or the "Sync Now" link in the bar across the
