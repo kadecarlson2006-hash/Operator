@@ -1,7 +1,9 @@
 # CURRENT STATUS — OPERATOR
 
-**Current milestone:** 13 — Active Operator (merged to `main`). Deciding on its own is off by
-default: see risk 49.
+**Current milestone:** 16 — Camera context. Milestones 14, 15 and 16 landed on 2026-09-06 and are
+green in CI. Two of the three are deliberately partial and say so: Milestone 15 has no ring
+hardware to test against (risk 10), and Milestone 16's glasses capture is not wired (risk 57).
+Deciding on its own is still off by default: see risk 49.
 
 **`main` contains Milestones 0 through 13.** Milestones 1 and 2 passed on the target Galaxy and
 Ray-Ban Meta on 2026-09-06; Milestone 3 still awaits the Meta SDK build. The **first live model call was made on 2026-09-06** and worked, as did memory retrieval
@@ -11,6 +13,25 @@ for closing them is in [TESTING.md](TESTING.md).
 **Last updated:** 2026-09-06
 
 ## What works (verified)
+
+- **Milestone 14: feedback learning.** Four verdicts on anything Operator said - HELPFUL,
+  UNWANTED, WRONG, TOO_LATE - stored with the confidence and relevance the comment carried.
+  Complaints raise the floors for uninvited comments and approval never lowers them (ADR-045);
+  the penalty decays over an hour and is capped, so one bad afternoon does not permanently mute
+  Operator. `GET /feedback/summary` reports the mean scores of the comments the user rejected,
+  which is the first instrument for risk 44 - the floors have been unmeasurable because they only
+  judge a model that wants to speak, and it rarely does. Nothing is measured yet; the instrument
+  is new and unused.
+- **Milestone 15: a physical button, as gestures.** No ring exists, so what is built is a mapping
+  over whatever key codes the platform delivers (ADR-047), not a driver: hold is push-to-talk, a
+  tap asks or interrupts, a double tap toggles mute. Foreground only (risk 54). Testable today
+  with any Bluetooth headset button.
+- **Milestone 16: camera context.** `POST /look` describes an image and drops it - never to disk,
+  never stored (ADR-049). Looking happens only when asked, with no ambient path at all, because a
+  camera has no cheap local equivalent of the voice-activity gate that makes always-on listening
+  defensible (ADR-048). The privacy rules travel with every request. **Glasses capture is not
+  wired** (risk 57), so nothing produces an image on the device yet, and no live vision call has
+  been made (risk 56).
 
 - **Phone and Bluetooth audio on the target hardware, 2026-09-06.** A 4 s loopback captured
   clearly from the SM-S908U1 built-in microphone at 40% peak and played through the Ray-Ban Meta

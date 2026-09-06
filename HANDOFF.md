@@ -1,7 +1,12 @@
 # HANDOFF - live testing
 
-Written 2026-09-06 for whoever continues the live testing, Codex included. `main` is at the
-commit that added this file. Milestones 0-13 are merged; the roadmap is in `README.md`.
+Written 2026-09-06 for whoever continues the live testing, Codex included. Milestones 0-16 are
+merged and green in CI; the roadmap is in `README.md`.
+
+**Milestones 14, 15 and 16 were built without hardware and have never run on the phone.** They
+compile, their logic is unit-tested, and two of them are deliberately partial: Milestone 15 has no
+ring to test against, and Milestone 16 produces no image on the device. Treat all three as
+unverified in the way the rest of this file means it - see "What landed on 2026-09-06" below.
 
 The running order is [TESTING.md](TESTING.md). This file is the state of play, the traps, and
 the rules that are not negotiable.
@@ -158,6 +163,38 @@ change: **File -> Sync Project with Gradle Files**, or the "Sync Now" link in th
 top of the editor. Logcat is the bottom panel; filter it on `Operator` to see the route logs,
 which is most of what stage 1 involves. If Android Studio offers to upgrade AGP or Gradle,
 **decline** - 9.4.0 and 9.6.0 are pinned and CI is green on them.
+
+## What landed on 2026-09-06 (Milestones 14-16)
+
+All three are backend-and-logic complete, CI green, and untried on hardware.
+
+**14 - feedback learning.** Four buttons under whatever Operator just said. The design rule is the
+asymmetry (ADR-045): complaints raise the confidence and relevance floors, approval never lowers
+them, and the penalty decays over an hour. The reason it matters: `GET /feedback/summary` reports
+the mean scores of the comments the user actually rejected, which is the first instrument for
+risk 44. **Give real verdicts during the next session** - that is the only way those floors stop
+being guesses, and a handful of honest taps is worth more than any amount of further reasoning
+about them.
+
+**15 - a physical button.** No ring, so this is a gesture mapping over whatever key codes arrive
+(ADR-047), not a driver. Hold = push-to-talk, tap = ask or interrupt, double tap = toggle mute.
+**Cheapest thing to try: press the Ray-Ban capacitive button while the app is in the foreground**
+and watch Logcat for `RemoteControl`. The SDK does not deliver gestures (META_GLASSES.md), but
+whether the glasses send ordinary AVRCP media keys as a headset would is a separate and open
+question (risk 54). If they do, Milestone 15 is testable with no extra hardware at all.
+
+**16 - camera context.** `POST /look` takes image bytes and returns a description; the image is
+never written anywhere (ADR-049). There is no ambient trigger and that is the design, not a gap
+(ADR-048). **The glasses do not take a picture yet** (risk 57) - the SDK supports it, nothing calls
+it. To try the backend half now, POST any JPEG with `OPERATOR_VISION_MODEL_ID` set. Risk 58 is the
+one to take seriously: whether a model honours the "do not identify anyone" rules under pressure
+is untested, and it should be tested deliberately with a photo containing a person and a visible
+name badge before this is pointed at anything real.
+
+**Also fixed:** voice-activity calibration was 8 frames - 160 ms, shorter than a syllable - which
+is why "Learning the room" was never visible. Now one second, with a test pinning the property
+that the gate cannot open while calibrating. The noisy-room case it exists for still has not been
+run (risk 33).
 
 ## Traps that have already cost time
 
