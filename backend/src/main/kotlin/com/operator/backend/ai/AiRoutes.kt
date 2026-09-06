@@ -31,6 +31,11 @@ data class AskRequest(
     val wit: String? = null,
     /** Set false to answer without touching memory. */
     val useMemory: Boolean = true,
+    /**
+     * The phone's rolling conversation window (Milestone 11), oldest line first, already
+     * speaker-labelled. The backend keeps no copy: it is read into one prompt and dropped.
+     */
+    val transcript: List<String> = emptyList(),
 )
 
 /** A memory that was put in front of the model, with the reason it was chosen. */
@@ -55,6 +60,8 @@ data class AskResponse(
     val upstreamProvider: String? = null,
     /** Memory-aware answering (Milestone 7). */
     val memoriesUsed: List<UsedMemory> = emptyList(),
+    /** How many transcript lines the answer was given, after the server-side cap. */
+    val transcriptLines: Int = 0,
     val memoryWritten: MemoryWritten? = null,
     val retrievalMillis: Long? = null,
     val semanticRetrieval: Boolean = false,
@@ -64,7 +71,8 @@ data class AskResponse(
 /**
  * Milestone 6 text AI.
  *
- *   POST /ai/respond   { prompt, tier?, maxOutputTokens?, sessionId?, promptVersion? }
+ *   POST /ai/respond   { prompt, tier?, maxOutputTokens?, sessionId?, promptVersion?,
+ *                        mode?, wit?, useMemory?, transcript? }
  *   GET  /usage        rolling token/latency/cost counters
  *
  * The phone sends a prompt and gets text back; the API key, model IDs, and system prompt all
@@ -156,6 +164,15 @@ fun Route.aiRoutes(
             }
         } else null
 
+        // The window is the phone's, but the size limit is ours: a client should not be able to
+        // push an unbounded prompt through us. Newest lines win — they are the relevant ones.
+        val transcriptLines = request.transcript
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .takeLast(MAX_TRANSCRIPT_LINES)
+            .map { it.take(MAX_TRANSCRIPT_LINE_CHARS) }
+        val rollingTranscript = transcriptLines.joinToString("\n").ifBlank { null }
+
         val promptVersion = request.promptVersion ?: defaultPromptVersion
         val systemPrompt = prompts.load(promptVersion)
         if (systemPrompt == null) log.warn("Prompt version {} unavailable; sending without a system prompt", promptVersion)
@@ -169,7 +186,10 @@ fun Route.aiRoutes(
                     modelId = decision.modelId,
                     systemPrompt = listOfNotNull(
                         systemPrompt,
-                        ContextAssembler.build(mode, wit, retrieved, RetrievalTrigger.DIRECT_REQUEST),
+                        ContextAssembler.build(
+                            mode, wit, retrieved, RetrievalTrigger.DIRECT_REQUEST,
+                            rollingTranscript = rollingTranscript,
+                        ),
                     ).joinToString("\n\n"),
                     userContent = request.prompt,
                     maxOutputTokens = request.maxOutputTokens,
@@ -214,6 +234,7 @@ fun Route.aiRoutes(
                 memoriesUsed = retrieved?.memories.orEmpty().map {
                     UsedMemory(it.memory.id, it.memory.memoryType.name, it.memory.content, it.memory.confidence, it.why)
                 },
+                transcriptLines = transcriptLines.size,
                 retrievalMillis = retrieved?.latencyMillis,
                 semanticRetrieval = retrieved?.semanticUsed ?: false,
                 retrievalNote = retrieved?.note,
@@ -223,3 +244,11 @@ fun Route.aiRoutes(
 
     get("/usage") { call.respond(usage.report()) }
 }
+
+/**
+ * Caps on the transcript a client may attach. The phone already bounds its own window
+ * (Milestone 11), but the backend must not depend on a well-behaved client to keep prompts
+ * finite — or costs predictable.
+ */
+const val MAX_TRANSCRIPT_LINES = 80
+const val MAX_TRANSCRIPT_LINE_CHARS = 500
