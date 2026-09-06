@@ -4,13 +4,20 @@
 default: see risk 49.
 
 **`main` contains Milestones 0 through 13.** Milestones 1 to 3 still await verification on real
-hardware. The **first live model call was made on 2026-09-06** and worked; transcription and TTS
-have still never run against a real provider. Both gaps are listed below, and the running order
+hardware. The **first live model call was made on 2026-09-06** and worked, as did memory retrieval
+with real embeddings; transcription and TTS have still never run against a real provider. Both gaps are listed below, and the running order
 for closing them is in [TESTING.md](TESTING.md).
 
 **Last updated:** 2026-09-05
 
 ## What works (verified)
+
+- **Memory works against a real model, 2026-09-06.** The brief's acceptance scenario end to end
+  with live embeddings: "Remember that Chris handles the west territory" stored **free**
+  (`model: none`, no round trip) and came back `embedded: true`; "Who handles the west?" retrieved
+  it at semantic **0.62**, confidence 0.95, `retrievalMillis` 310, and was answered correctly.
+  Milestone 7 is real rather than test-green. Caveat worth keeping: one easy query against a store
+  holding one memory says nothing about precision with a full store (risk 31).
 
 - **First live model call, 2026-09-06.** `POST /ai/respond` answered on
   `deepseek/deepseek-v4-flash` (OpenRouter, routed upstream to DigitalOcean) in **2019 ms** for

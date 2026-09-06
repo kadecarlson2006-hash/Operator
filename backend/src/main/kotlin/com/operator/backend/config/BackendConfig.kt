@@ -44,6 +44,9 @@ data class BackendConfig(
         "deepModelId" to operator.deepModelId,
         "decisionModelId" to operator.decisionModelId,
         "visionModelId" to operator.visionModelId,
+        // Whether this is set is the difference between semantic and lexical retrieval, so its
+        // absence from the startup line reads as "no embeddings" when it is really "not logged".
+        "embeddingModelId" to operator.embeddingModelId,
         "ttsProvider" to operator.ttsProvider,
         "elevenLabsVoiceId" to operator.elevenLabsVoiceId,
         "elevenLabsModelId" to operator.elevenLabsModelId,

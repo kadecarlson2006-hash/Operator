@@ -29,6 +29,7 @@ class BackendConfigTest {
                 BackendConfig.Keys.ELEVENLABS_API_KEY to "short",
                 BackendConfig.Keys.DATABASE_URL to "postgresql://operator:hunter2@db.internal:5432/operator",
                 "OPERATOR_FAST_MODEL_ID" to "vendor/fast",
+                "OPERATOR_EMBEDDING_MODEL_ID" to "vendor/embed",
             ),
         )
         val view = c.redacted()
@@ -36,6 +37,9 @@ class BackendConfigTest {
         assertEquals("set", view["elevenLabsApiKey"])
         assertEquals("jdbc:postgresql://db.internal:5432/operator", view["databaseUrl"])
         assertEquals("vendor/fast", view["fastModelId"])
+        // Reported for the same reason as the other model IDs: reading the startup line and
+        // concluding semantic retrieval was off, when it was on, already happened once.
+        assertEquals("vendor/embed", view["embeddingModelId"])
         assertFalse(view.values.any { it?.contains("hunter2") == true })
         assertFalse(view.values.any { it?.contains("0123456789") == true })
     }
