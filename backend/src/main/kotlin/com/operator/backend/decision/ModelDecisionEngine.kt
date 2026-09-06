@@ -52,6 +52,12 @@ class ModelDecisionEngine(
     private val prompts: PromptLibrary,
     private val config: OperatorConfig,
     private val retrieval: MemoryRetrievalEngine? = null,
+    /**
+     * Supplies the remarks the user has recently marked unwanted (Milestone 14). A function rather
+     * than a list because the engine outlives any one decision, and a snapshot taken at
+     * construction would go stale the moment somebody gave feedback.
+     */
+    private val unwantedComments: () -> List<String> = ::emptyList,
     private val promptVersion: String = DEFAULT_PROMPT_VERSION,
     private val clock: () -> Long = System::currentTimeMillis,
 ) : ResponseDecisionEngine {
@@ -98,6 +104,7 @@ class ModelDecisionEngine(
                 trigger = RetrievalTrigger.AMBIENT,
                 rollingTranscript = request.recentTranscript.ifBlank { null },
                 recentOperatorComments = request.recentComments,
+                unwantedComments = unwantedComments(),
             ),
         ).joinToString("\n\n")
 

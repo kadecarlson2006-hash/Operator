@@ -498,3 +498,54 @@ replying to itself is how a loop starts.
 
 The lull is an optimisation and a courtesy, not a spending control. The backend's budget is what
 actually bounds cost, since the phone cannot be trusted to.
+
+## ADR-045: Feedback can only make Operator quieter
+
+**Status:** Accepted (Milestone 14)
+
+Recent complaints raise the confidence and relevance floors for uninvited comments. Approval does
+not lower them. It only stops the penalty accruing, and the floors never fall below what the
+configuration already allows.
+
+The asymmetry is the decision, and it is deliberate rather than cautious. ADR-038 gives
+`ConversationPolicy` the property that it may refuse but never permit, and feedback that could
+loosen a floor would take that away: "silence is the default" would hold only until somebody
+tapped approve a few times. The costs are not symmetric either. A remark that was wanted and never
+came is a small loss the user will rarely notice. A remark that was not wanted is the one that
+makes people switch the thing off — and that failure is what most of the anti-annoyance machinery
+in Milestones 12 and 13 exists to prevent.
+
+Complaints decay linearly to nothing over an hour. Feedback older than that describes a
+conversation that has moved on, and a penalty that never expired would eventually silence Operator
+permanently on the strength of one bad afternoon. The decay is linear rather than exponential
+because this number has to be explainable to the person it is silencing.
+
+`WRONG` is excluded from the penalty. Being incorrect is a content fault, and making Operator speak
+less often does not make it more accurate; that verdict reaches the model through the prompt
+instead. `TOO_LATE` is included, because a comment that arrived after the moment passed should not
+have been made — and it points at the settle delay and provider latency (risks 47 and 7) rather
+than at the decision itself, which is why it is a separate verdict at all.
+
+The penalty is a nudge, not a mute. A comment Operator is confident about still gets through a
+complaint. Feedback that could silence outright would be an off switch with extra steps, and
+Operator already has an off switch.
+
+## ADR-046: Feedback stores what Operator said, not the conversation around it
+
+**Status:** Accepted (Milestone 14)
+
+A stored verdict keeps Operator's own line, the verdict, the trigger, and the confidence and
+relevance the model claimed at the time. It does not keep the transcript that prompted the comment.
+
+The brief forbids silently building detailed permanent records of the people around the user, and
+the surrounding talk is exactly that: other people's words, kept indefinitely, without their
+knowledge. Everything else in the system treats conversation as a rolling in-memory window that
+ages out. Feedback is the one place where something is written down and kept, so it is the one
+place where that boundary could quietly be crossed.
+
+Nothing is lost by omitting it. The signal the milestone needs is "you said this, and it was
+unwanted" — the shape of an unwelcome remark, and the scores that let it through. What everyone
+else was saying at the time does not improve that, and the scores are the part that finally makes
+the floors measurable: until now the confidence and relevance thresholds have been guesses nothing
+could test, because they only judge a model that wants to speak (risk 44). The mean scores of the
+comments a user actually rejected are the first evidence of what those floors should have been.

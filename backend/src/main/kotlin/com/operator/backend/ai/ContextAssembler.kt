@@ -23,6 +23,12 @@ object ContextAssembler {
         rollingTranscript: String? = null,
         recentOperatorComments: List<String> = emptyList(),
         availableTools: List<String> = emptyList(),
+        /**
+         * Things Operator said that the user did not want (Milestone 14). Only the negative ones:
+         * a list of approved remarks would read as a licence to say more of them, and the floors
+         * are the only thing that decides whether Operator speaks (ADR-045).
+         */
+        unwantedComments: List<String> = emptyList(),
     ): String = buildString {
         appendLine("CURRENT OPERATOR STATE")
         appendLine()
@@ -60,6 +66,12 @@ object ContextAssembler {
             appendLine()
             appendLine("Your recent comments (do not repeat yourself):")
             recentOperatorComments.forEach { appendLine("- $it") }
+        }
+
+        if (unwantedComments.isNotEmpty()) {
+            appendLine()
+            appendLine("The user marked these earlier remarks of yours as unwanted. Do not say things like them:")
+            unwantedComments.forEach { appendLine("- $it") }
         }
 
         if (availableTools.isNotEmpty()) {

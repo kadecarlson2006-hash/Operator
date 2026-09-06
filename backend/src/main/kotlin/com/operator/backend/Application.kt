@@ -14,9 +14,14 @@ import com.operator.backend.ai.aiRoutes
 import com.operator.backend.health.healthRoutes
 import com.operator.backend.memory.DuplicateMemoryException
 import com.operator.backend.memory.EntityNotFoundException
+import com.operator.backend.feedback.FeedbackStore
+import com.operator.backend.feedback.InMemoryFeedbackStore
+import com.operator.backend.feedback.PostgresFeedbackStore
+import com.operator.backend.feedback.feedbackRoutes
 import com.operator.backend.memory.InMemoryMemoryStore
 import com.operator.backend.memory.MemoryNotFoundException
 import com.operator.backend.memory.MemoryRetrievalEngine
+import com.operator.backend.memory.DEFAULT_USER_ID
 import com.operator.backend.memory.MemoryStore
 import com.operator.backend.memory.MemoryWriteEngine
 import com.operator.backend.memory.MemoryValidationException
@@ -33,6 +38,9 @@ import com.operator.backend.usage.UsageTracker
 import com.operator.backend.tts.ttsRoutes
 import com.operator.core.ai.AIProvider
 import com.operator.core.decision.ConversationPolicy
+import com.operator.core.feedback.CommentFeedback
+import com.operator.core.feedback.FeedbackAdjustment
+import com.operator.core.feedback.VerdictKind
 import com.operator.core.transcription.TranscriptionProvider
 import com.operator.core.tts.TTSProvider
 import io.ktor.http.HttpStatusCode
@@ -49,10 +57,17 @@ import kotlinx.serialization.json.Json
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.cancel
 import org.slf4j.LoggerFactory
 
-const val BACKEND_VERSION = "0.13.0-m13"
+const val BACKEND_VERSION = "0.14.0-m14"
+
+/**
+ * How many rejected remarks go into the decision prompt. Enough to show a pattern, few enough
+ * that they do not crowd out the conversation the model is meant to be judging.
+ */
+private const val MAX_UNWANTED_IN_PROMPT = 5
 
 /** Everything the server needs, built once at startup and replaceable with fakes in tests. */
 class BackendDependencies(
@@ -67,6 +82,12 @@ class BackendDependencies(
     val embeddings: EmbeddingProvider = NoEmbeddingProvider,
     val transcription: TranscriptionProvider = providers.transcription,
     val tts: TTSProvider = providers.tts,
+    /**
+     * Milestone 14. Last in the list rather than beside `memory` where it belongs conceptually:
+     * several tests construct this positionally, and a parameter inserted mid-list silently
+     * reassigns every argument after it.
+     */
+    val feedback: FeedbackStore = InMemoryFeedbackStore(),
 ) {
     val modelRouter = ModelRouter(config.operator)
 
@@ -80,6 +101,9 @@ class BackendDependencies(
         maxCommentsPer5Minutes = config.operator.maxCommentsPer5Minutes,
         minDecisionIntervalSeconds = config.operator.minDecisionIntervalSeconds,
         maxDecisionsPer5Minutes = config.operator.maxDecisionsPer5Minutes,
+        // Milestone 14. Present unconditionally: with no feedback recorded the penalty is zero,
+        // so this changes nothing until somebody actually complains.
+        feedbackAdjustment = FeedbackAdjustment(),
     )
 
     /** Retrieval marks memories as used off the answer's latency path (ADR-025). */
@@ -93,7 +117,39 @@ class BackendDependencies(
         prompts = prompts,
         config = config.operator,
         retrieval = retrieval,
+        unwantedComments = { recentlyUnwanted },
     )
+
+    /**
+     * The remarks the user rejected, kept in memory beside the policy's own copy.
+     *
+     * Read on the decision path, which is why it is not a store query: the same reasoning as the
+     * policy's bounded feedback list. Refreshed at startup and on every new verdict.
+     */
+    @Volatile
+    private var recentlyUnwanted: List<String> = emptyList()
+
+    /**
+     * Loads what the store already knows, so a restart does not forget yesterday's complaints.
+     *
+     * Failure here is deliberately not fatal: starting with no feedback means Operator is exactly
+     * as talkative as its configured floors allow, which is the documented default rather than a
+     * broken state.
+     */
+    suspend fun primeFeedback() {
+        val recent = runCatching { feedback.recent(DEFAULT_USER_ID) }.getOrElse { return }
+        conversationPolicy.setFeedback(recent.map { it.feedback })
+        recentlyUnwanted = recent.map { it.feedback }
+            .filter { it.verdict == VerdictKind.UNWANTED }
+            .map { it.comment }
+            .takeLast(MAX_UNWANTED_IN_PROMPT)
+    }
+
+    /** Adds one rejected remark to what the decision prompt sees. */
+    fun noteFeedback(item: CommentFeedback) {
+        if (item.verdict != VerdictKind.UNWANTED) return
+        recentlyUnwanted = (recentlyUnwanted + item.comment).takeLast(MAX_UNWANTED_IN_PROMPT)
+    }
 
     val health = HealthReporter(
         version = BACKEND_VERSION,
@@ -126,13 +182,15 @@ class BackendDependencies(
             } ?: NoDatabase
             val memory: MemoryStore = (database as? PostgresGateway)?.let { PostgresMemoryStore(it.dataSource) }
                 ?: InMemoryMemoryStore().also { log.warn("No reachable database: memory store is IN-MEMORY and will not survive a restart") }
+            val feedback: FeedbackStore = (database as? PostgresGateway)?.let { PostgresFeedbackStore(it.dataSource) }
+                ?: InMemoryFeedbackStore()
             val embeddings: EmbeddingProvider = if (config.openRouterConfigured && !config.operator.embeddingModelId.isNullOrBlank()) {
                 OpenRouterEmbeddingProvider(config.openRouterApiKey!!, config.operator.embeddingModelId!!)
             } else {
                 log.info("No embedding model configured; memory retrieval will be lexical and structured only")
                 NoEmbeddingProvider
             }
-            return BackendDependencies(config, database, ProviderRegistry(config), memory, embeddings = embeddings)
+            return BackendDependencies(config, database, ProviderRegistry(config), memory, embeddings = embeddings, feedback = feedback)
         }
     }
 }
@@ -143,6 +201,10 @@ private class UnreachableDatabase(private val reason: String) : DatabaseGateway 
 
 /** Ktor module: plugins + routes. Kept free of construction so tests can inject [deps]. */
 fun Application.operatorModule(deps: BackendDependencies) {
+    // Milestone 14: reload recent verdicts before serving, so a restart does not hand the user
+    // back an Operator that has forgotten every complaint they made.
+    launch { deps.primeFeedback() }
+
     install(ContentNegotiation) {
         json(Json { prettyPrint = true; encodeDefaults = true; explicitNulls = true })
     }
@@ -165,6 +227,7 @@ fun Application.operatorModule(deps: BackendDependencies) {
         memoryRoutes(deps.memory, deps.config.demoSeedEnabled, deps.embeddings)
         aiRoutes(deps.ai, deps.modelRouter, deps.prompts, deps.usage, deps.config.promptVersion, deps.retrieval, deps.writeEngine)
         decisionRoutes(deps.decisionEngine, deps.usage)
+        feedbackRoutes(deps.feedback, deps.conversationPolicy, deps::noteFeedback)
         transcriptionRoutes(deps.transcription, deps.usage)
         ttsRoutes(
             deps.tts,

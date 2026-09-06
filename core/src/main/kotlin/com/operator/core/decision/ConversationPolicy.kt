@@ -1,5 +1,7 @@
 package com.operator.core.decision
 
+import com.operator.core.feedback.CommentFeedback
+import com.operator.core.feedback.FeedbackAdjustment
 import com.operator.core.model.OperatorMode
 
 /**
@@ -36,6 +38,12 @@ class ConversationPolicy(
     private val minRelevance: Float = 0.5f,
     /** The brief: one sentence, occasionally two, never more than three. */
     private val maxSentences: Int = 3,
+    /**
+     * Raises the floors above in response to recent complaints (Milestone 14). It can only ever
+     * add, never subtract, so approval cannot talk Operator into speaking more than its configured
+     * floors already allow (ADR-045). Absent means no adjustment at all.
+     */
+    private val feedbackAdjustment: FeedbackAdjustment? = null,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
     init {
@@ -51,6 +59,30 @@ class ConversationPolicy(
 
     /** When the model was actually consulted, spoken or not. This is what costs money. */
     private val decidedAt = ArrayDeque<Long>()
+
+    /**
+     * Recent feedback, newest last, bounded like everything else here.
+     *
+     * Held in memory rather than read from the store on every decision: the gate runs before the
+     * model on every ambient moment, and a database round trip there would put the cheapest part
+     * of the pipeline behind the slowest.
+     */
+    private val feedback = ArrayDeque<CommentFeedback>()
+
+    /** Replaces what the policy knows about recent feedback. Newest last. */
+    fun setFeedback(items: List<CommentFeedback>) {
+        feedback.clear()
+        items.takeLast(MAX_FEEDBACK_REMEMBERED).forEach(feedback::addLast)
+    }
+
+    fun recordFeedback(item: CommentFeedback) {
+        feedback.addLast(item)
+        while (feedback.size > MAX_FEEDBACK_REMEMBERED) feedback.removeFirst()
+    }
+
+    /** How much recent complaints have raised the floors, for diagnostics. 0 when nothing applies. */
+    fun feedbackPenalty(): Float =
+        feedbackAdjustment?.penalty(feedback.toList(), clock()) ?: 0f
 
     /**
      * Whether the model should be consulted at all. Returns a reason code when it should not —
@@ -99,8 +131,13 @@ class ConversationPolicy(
         // An invited answer is judged on quality, not on whether it was worth interrupting for.
         val invited = request.trigger != DecisionTrigger.AMBIENT
         if (!invited) {
-            if (decision.confidence < minConfidence) return decision.suppressed("LOW_CONFIDENCE")
-            if (decision.relevance < minRelevance) return decision.suppressed("LOW_RELEVANCE")
+            // Recent complaints raise the bar, and only ever raise it (ADR-045). Applied to the
+            // uninvited path alone: the user who just pressed a button is asking, and answering
+            // them worse because an unrelated ambient remark annoyed them earlier would be
+            // punishing the wrong request.
+            val penalty = feedbackPenalty()
+            if (decision.confidence < minConfidence + penalty) return decision.suppressed("LOW_CONFIDENCE")
+            if (decision.relevance < minRelevance + penalty) return decision.suppressed("LOW_RELEVANCE")
         }
 
         if (sentenceCount(response) > maxSentences) return decision.suppressed("TOO_LONG")
@@ -150,6 +187,13 @@ class ConversationPolicy(
 
     private companion object {
         const val WINDOW_MILLIS = 5 * 60 * 1_000L
+
+        /**
+         * Feedback kept in memory. Bounded because this is a long-lived object on a phone-facing
+         * server, and because a complaint old enough to fall off the end has already decayed to
+         * no weight anyway.
+         */
+        const val MAX_FEEDBACK_REMEMBERED = 50
 
         /** Terminal punctuation, ignoring a trailing one so "Yes." counts as one sentence. */
         fun sentenceCount(text: String): Int =
