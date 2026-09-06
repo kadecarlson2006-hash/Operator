@@ -584,3 +584,49 @@ and then stop, which is precisely the failure the anti-annoyance work exists to 
 Key events arrive through the activity, so this is foreground only. Capturing media buttons
 system-wide needs a MediaSession that survives the screen going off, which is worth building once
 there is hardware to point at it (risk 54).
+
+## ADR-048: Operator only looks when asked
+
+**Status:** Accepted (Milestone 16)
+
+There is exactly one trigger for the camera: the user asking. `LookTrigger` has one value, and
+`CameraContextPolicy` refuses anything else by name.
+
+The microphone works differently, and the difference is the whole argument. Continuous listening is
+safe to build because there is a cheap local test — voice activity — for whether a moment is worth
+sending, so silence never leaves the device. A camera has no equivalent. There is no local check
+for "this frame is worth uploading", so an always-on camera means uploading everything or guessing,
+and both are the surveillance device the brief is explicit about not building, pointed at people
+who never agreed to it.
+
+The absence of an ambient path is therefore not a gap to be filled in a later milestone. Automatic
+looking is the thing that turns a pair of glasses into something nobody around the wearer consented
+to, and a person cannot tell by looking whether the camera is running.
+
+The policy also refuses on mute, on OFF, without the camera permission, without the glasses, and
+on an interval and a five-minute budget — the same shape as `ConversationPolicy`, and for the same
+reason: it can only refuse, and it refuses before anything is captured or sent.
+
+## ADR-049: A look produces text, and the image is dropped
+
+**Status:** Accepted (Milestone 16)
+
+The image is held in memory, sent, and discarded. It is never written to disk, never stored, and
+never attached to a memory. Only the description survives, and the log records the failure, never
+the description.
+
+This is the audio rule — rolling in-memory buffers, nothing permanent — applied to the sense that
+would be worse to get wrong. A stored photograph of a room is a record of everyone in it.
+
+Because the description is the only artefact that survives, the constraints live on the
+description rather than on the capture. A model asked to describe a scene will identify people,
+guess their jobs, read their badges aloud and speculate about their moods, and every one of those
+is a detailed permanent record of a stranger. `VisionConstraints` forbids identification,
+appearance, and reading personal information out of the scene, and those rules are sent with every
+request rather than configured once somewhere — a prompt that can be edited without them is a
+prompt that will eventually be edited without them.
+
+The vision wire format uses its own message types rather than widening `ChatMessage.content` to be
+either a string or an array of parts. The text format is verified against live calls and works
+(risk 27); putting the one proven path at risk for a feature that has never run would be a poor
+trade, and two types cost only a little duplication.

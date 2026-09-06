@@ -14,6 +14,10 @@ import com.operator.backend.ai.aiRoutes
 import com.operator.backend.health.healthRoutes
 import com.operator.backend.memory.DuplicateMemoryException
 import com.operator.backend.memory.EntityNotFoundException
+import com.operator.backend.camera.NoVisionProvider
+import com.operator.backend.camera.OpenRouterVisionProvider
+import com.operator.backend.camera.VisionProvider
+import com.operator.backend.camera.visionRoutes
 import com.operator.backend.feedback.FeedbackStore
 import com.operator.backend.feedback.InMemoryFeedbackStore
 import com.operator.backend.feedback.PostgresFeedbackStore
@@ -61,7 +65,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.cancel
 import org.slf4j.LoggerFactory
 
-const val BACKEND_VERSION = "0.14.0-m14"
+const val BACKEND_VERSION = "0.16.0-m16"
 
 /**
  * How many rejected remarks go into the decision prompt. Enough to show a pattern, few enough
@@ -88,6 +92,8 @@ class BackendDependencies(
      * reassigns every argument after it.
      */
     val feedback: FeedbackStore = InMemoryFeedbackStore(),
+    /** Milestone 16. Off unless a vision model is configured; looking is never the default. */
+    val vision: VisionProvider = NoVisionProvider,
 ) {
     val modelRouter = ModelRouter(config.operator)
 
@@ -161,6 +167,7 @@ class BackendDependencies(
     )
 
     fun close() {
+        (vision as? OpenRouterVisionProvider)?.close()
         memoryScope.cancel()
         (embeddings as? OpenRouterEmbeddingProvider)?.close()
         database.close()
@@ -184,13 +191,17 @@ class BackendDependencies(
                 ?: InMemoryMemoryStore().also { log.warn("No reachable database: memory store is IN-MEMORY and will not survive a restart") }
             val feedback: FeedbackStore = (database as? PostgresGateway)?.let { PostgresFeedbackStore(it.dataSource) }
                 ?: InMemoryFeedbackStore()
+            val vision: VisionProvider = config.openRouterApiKey
+                ?.takeIf { it.isNotBlank() && !config.operator.visionModelId.isNullOrBlank() }
+                ?.let { OpenRouterVisionProvider(it, config.operator.visionModelId!!) }
+                ?: NoVisionProvider
             val embeddings: EmbeddingProvider = if (config.openRouterConfigured && !config.operator.embeddingModelId.isNullOrBlank()) {
                 OpenRouterEmbeddingProvider(config.openRouterApiKey!!, config.operator.embeddingModelId!!)
             } else {
                 log.info("No embedding model configured; memory retrieval will be lexical and structured only")
                 NoEmbeddingProvider
             }
-            return BackendDependencies(config, database, ProviderRegistry(config), memory, embeddings = embeddings, feedback = feedback)
+            return BackendDependencies(config, database, ProviderRegistry(config), memory, embeddings = embeddings, feedback = feedback, vision = vision)
         }
     }
 }
@@ -228,6 +239,7 @@ fun Application.operatorModule(deps: BackendDependencies) {
         aiRoutes(deps.ai, deps.modelRouter, deps.prompts, deps.usage, deps.config.promptVersion, deps.retrieval, deps.writeEngine)
         decisionRoutes(deps.decisionEngine, deps.usage)
         feedbackRoutes(deps.feedback, deps.conversationPolicy, deps::noteFeedback)
+        visionRoutes(deps.vision, deps.usage)
         transcriptionRoutes(deps.transcription, deps.usage)
         ttsRoutes(
             deps.tts,

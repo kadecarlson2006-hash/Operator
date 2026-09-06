@@ -123,8 +123,11 @@ const val DEFAULT_MAX_BODY_BYTES = 10 * 1024 * 1024 // ~5 minutes of 16 kHz mono
 /**
  * Reads the whole body, or returns null as soon as it would exceed [limit] — so an oversized
  * upload is refused while it streams rather than after it has all been held in memory.
+ *
+ * Internal rather than private because `/look` uploads an image the same way (Milestone 16), and
+ * two copies of a bound on how much a request may put in memory is one copy too many.
  */
-private suspend fun ByteReadChannel.readBounded(limit: Int): ByteArray? {
+internal suspend fun ByteReadChannel.readBounded(limit: Int): ByteArray? {
     val chunk = ByteArray(64 * 1024)
     val out = ByteArrayOutputStream()
     while (true) {
