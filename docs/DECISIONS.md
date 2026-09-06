@@ -248,7 +248,7 @@ system prompt rather than silently substituting an invented one.
 
 ## ADR-024: Usage accounting is in-process and bounded, not billing
 
-**Status:** Accepted (Milestone 6) — revisit at Milestone 13
+**Status:** Accepted (Milestone 6) — revisited at Milestone 13 (see ADR-042)
 
 `UsageTracker` keeps a bounded ring of recent calls plus running totals, and `GET /usage` derives
 daily, monthly, per-model, and all-time views from it. It deliberately does not write to the
@@ -455,3 +455,46 @@ judgement stays testable on its own and the phone keeps control of delivery — 
 half-duplex rules from Milestone 10, which can still refuse a decision that was made while
 Operator was already speaking. A decision to speak is consequently not the same as having
 spoken, and the app records only what actually came out.
+
+## ADR-042: A budget for asking, separate from the limits on speaking
+
+**Status:** Accepted (Milestone 13)
+
+Every limit in `ConversationPolicy` was keyed on when Operator last *spoke*. Silence is the common
+case by design, so while Operator says nothing those limits bound nothing: under Milestone 12 the
+user's finger was the only thing preventing unbounded spend, and Milestone 13 removes the finger.
+
+`minDecisionIntervalSeconds` and `maxDecisionsPer5Minutes` are the only limits that hold when
+Operator stays quiet. They are enforced on the backend rather than the phone, for the same reason
+the transcript cap is (ADR-033): a client bug or a chatty room must not be able to spend without
+limit. An invited decision is never refused by the budget — the user asked — but is counted
+against it, because it costs the same. The call is recorded before it is made: a failed call still
+cost a round trip, and a provider that is timing out is when an unbudgeted retry loop hurts most.
+
+This is the revisit that ADR-024 anticipated for Milestone 13.
+
+## ADR-043: Active Operator is off by default and does not persist itself
+
+**Status:** Accepted (Milestone 13)
+
+Deciding on its own is a deliberate act each time. The confidence and relevance floors it depends
+on were chosen to be testable rather than measured, and no model has yet judged a real
+conversation (risks 43-44); switching it on before those numbers have been checked against a real
+room is precisely how an assistant becomes the nuisance the policy exists to prevent.
+
+It is also not persisted. A setting that quietly survives a restart is one that ends up switched
+on in a room where nobody expected it, which is the wrong failure for something holding a
+microphone. Emergency mute turns it off rather than merely stopping speech.
+
+## ADR-044: Ambient decisions wait for a lull
+
+**Status:** Accepted (Milestone 13)
+
+The decider debounces on the rolling transcript rather than firing per line. Someone mid-sentence
+has not finished the thought, and interrupting a thought is worse than being slow to it; waiting
+also means the model sees a complete exchange rather than half of one, and one decision covers a
+whole exchange instead of one per utterance. Operator's own last line is never a trigger, because
+replying to itself is how a loop starts.
+
+The lull is an optimisation and a courtesy, not a spending control. The backend's budget is what
+actually bounds cost, since the phone cannot be trusted to.

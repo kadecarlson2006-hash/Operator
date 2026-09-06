@@ -12,6 +12,7 @@ import com.operator.app.backend.AskState
 import com.operator.app.backend.SpeechState
 import com.operator.app.bluetooth.BluetoothStatus
 import com.operator.app.di.OperatorContainer
+import com.operator.app.decision.AmbientState
 import com.operator.app.decision.DecisionState
 import com.operator.app.transcription.ListenState
 import com.operator.app.transcription.TranscriptionService
@@ -51,6 +52,7 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
         val transcript: List<TranscriptEntry>,
         val speech: SpeechState,
         val decision: DecisionState,
+        val ambient: AmbientState,
     )
 
     private val audioSection = combine(
@@ -70,9 +72,13 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
         container.glasses.state,
         container.listen.state,
         container.transcript.state,
-        combine(container.speech.state, container.decision.state) { speech, decision -> speech to decision },
+        combine(
+            container.speech.state,
+            container.decision.state,
+            container.ambient.state,
+        ) { speech, decision, ambient -> Triple(speech, decision, ambient) },
     ) { ask, glasses, listen, transcript, voice ->
-        AiSection(ask, glasses, listen, transcript, voice.first, voice.second)
+        AiSection(ask, glasses, listen, transcript, voice.first, voice.second, voice.third)
     }
 
     val uiState: StateFlow<OperatorUiState> = combine(
@@ -96,6 +102,7 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
             transcript = ai.transcript,
             speech = ai.speech,
             decision = ai.decision,
+            ambient = ai.ambient,
             glasses = ai.glasses,
             glassesActions = container.glasses.actions,
             lastEvent = event,
@@ -120,6 +127,8 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
                     // And it means forgetting what was already heard: leaving the window populated
                     // would keep feeding prompts the conversation the user just muted.
                     container.transcript.clear()
+                    // And it means Operator stops deciding on its own, not merely stops speaking.
+                    container.ambient.setEnabled(false)
                 }
             }
         }
@@ -151,6 +160,16 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
     }
 
     fun clearDecision() = container.decision.clear()
+
+    /**
+     * Milestone 13: lets Operator decide on its own when to consider speaking. Muting stops it,
+     * and it stays off across restarts — this is not a setting that should quietly persist itself
+     * into a room nobody expected it in.
+     */
+    fun setAmbient(enabled: Boolean) {
+        container.ambient.setEnabled(enabled)
+        lastEvent.value = if (enabled) "ACTIVE OPERATOR on — deciding on its own" else "ACTIVE OPERATOR off"
+    }
     fun toggleMute() = container.stateManager.toggleMute()
     fun setMode(mode: OperatorMode) = container.stateManager.setMode(mode)
     fun setWit(wit: WitLevel) = container.stateManager.setWit(wit)

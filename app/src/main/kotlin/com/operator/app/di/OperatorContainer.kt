@@ -12,6 +12,7 @@ import com.operator.app.backend.SpeechController
 import com.operator.app.audio.CommunicationLink
 import com.operator.app.audio.ContinuousMicrophone
 import com.operator.app.audio.GlassesAudioCoordinator
+import com.operator.app.decision.AmbientDecider
 import com.operator.app.decision.DecisionController
 import com.operator.app.transcription.ListenController
 import com.operator.core.transcription.RollingTranscript
@@ -136,6 +137,17 @@ class OperatorContainer(app: Application) {
         scope = appScope,
         speak = { text -> glassesAudio.speak(text) },
         stateSupplier = { stateManager.current.let { Triple(it.mode, it.wit, it.muted) } },
+    )
+
+    /**
+     * Milestone 13: decides on its own when to consider speaking. Off until switched on, and the
+     * backend's decision budget is what actually bounds what it can spend.
+     */
+    val ambient = AmbientDecider(
+        transcript = transcript,
+        scope = appScope,
+        decide = { decision.request(trigger = "AMBIENT") },
+        audioAllowed = { stateManager.current.let { !it.muted && it.isProcessing } },
     )
 
     /** Meta Wearables toolkit when compiled in, otherwise an honest no-op (ADR-004 / ADR-013). */

@@ -75,6 +75,7 @@ data class OperatorActions(
     val onClearTranscripts: () -> Unit = {},
     val onConsiderCommenting: () -> Unit = {},
     val onClearDecision: () -> Unit = {},
+    val onSetAmbient: (Boolean) -> Unit = {},
 )
 
 @Composable
@@ -564,6 +565,36 @@ private fun DecisionPanel(state: OperatorUiState, actions: OperatorActions) {
         d.error?.let {
             Spacer(Modifier.height(10.dp))
             Text(it, style = MaterialTheme.typography.bodyMedium, color = OperatorColors.Alert)
+        }
+
+        Spacer(Modifier.height(12.dp))
+        Text("ACTIVE OPERATOR · MILESTONE 13", style = MaterialTheme.typography.labelSmall, color = OperatorColors.AmberDim)
+        Text(
+            "Lets Operator decide on its own, after a lull in the conversation. Off by default: " +
+                "the thresholds it relies on are estimates, not measurements.",
+            style = MaterialTheme.typography.bodySmall,
+            color = OperatorColors.CreamDim,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SelectorChip(
+                label = if (state.ambient.enabled) "ON" else "OFF",
+                selected = state.ambient.enabled,
+                enabled = !state.operator.muted,
+                onClick = { actions.onSetAmbient(!state.ambient.enabled) },
+            )
+            if (state.ambient.enabled) {
+                Text(
+                    if (state.ambient.waiting) "waiting for a lull" else "listening",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = OperatorColors.AmberDim,
+                    modifier = Modifier.align(Alignment.CenterVertically),
+                )
+            }
+        }
+        if (state.ambient.considered > 0) {
+            KeyValueRow("CONSIDERED ON ITS OWN", state.ambient.considered.toString())
         }
 
         Spacer(Modifier.height(10.dp))

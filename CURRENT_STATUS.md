@@ -1,6 +1,7 @@
 # CURRENT STATUS — OPERATOR
 
-**Current milestone:** 12 — Response decision engine (merged to `main`).
+**Current milestone:** 13 — Active Operator (implemented; on
+`claude/milestone-13-active-operator`). Deciding on its own is off by default: see risk 49.
 
 **`main` contains Milestones 0 through 12.** Milestones 1 to 3 still await verification on real
 hardware, and no live model, transcription, or TTS call has ever been made. Both gaps are listed
@@ -10,6 +11,12 @@ below.
 
 ## What works (verified)
 
+- Milestone 13: Active Operator. `AmbientDecider` watches the rolling transcript and, once
+  switched on, decides on its own after a lull rather than on a button press; Operator's own last
+  line is never a trigger. `ConversationPolicy` gains the only limits that hold while Operator
+  stays silent — an interval between *asking* and a five-minute budget — enforced on the backend,
+  because the previous limits all keyed on speaking and bounded nothing during silence. Off by
+  default, not persisted, and turned off by emergency mute. 13 new tests.
 - Milestone 12: the decision stage. `ConversationPolicy` refuses locally — on mute, OFF, modes
   that never volunteer, an empty transcript, the comment interval and the five-minute cap —
   before any model is asked, so a refused moment costs nothing. What survives goes to the
@@ -131,9 +138,8 @@ registration, and mock testing.
 - Listening is still started by hand: the user presses START LISTENING. It now continues in the
   background until stopped, but Operator never decides on its own to start.
 - Operator's own replies never reach the rolling window: nothing speaks yet (Milestone 9).
-- Nothing decides on its own *when* to consider speaking: the decision runs when the user presses
-  a button, not when new speech arrives. Firing it automatically is Milestone 13, and is
-  deliberately held until the thresholds have been tuned against a real conversation (risks 44-45).
+- Active Operator exists but is off by default, and nobody has run it against a real model. The
+  thresholds, the settle delay, and the decision budget are all estimates (risks 43-44, 47-49).
 - No authentication (single default user, ADR-021).
 - Camera streaming/photo (Milestone 16), rolling context, decision
   engine, BLE ring, integrations.
@@ -189,6 +195,12 @@ refused as RECENTLY_SPOKE → set mode to QUIET and confirm it is refused free, 
 call → mute and confirm COMMENT NOW is refused → the real question is whether the model stays
 quiet in an ordinary conversation (risk 43); if it chatters, the prompt and the floors need work
 before ambient deciding is wired up.
+
+Milestone 13 (active): with listening on and a decision model configured, switch ACTIVE OPERATOR
+on → talk normally for ten minutes → the question is whether it stays quiet; count how often it
+speaks and whether any of it was worth hearing → check `GET /usage` for what the decisions cost
+and compare against the budget → confirm it waits for a pause rather than cutting in → confirm it
+never reacts to its own last line → mute and confirm it switches itself off (risks 47-49).
 
 Milestone 3 (Meta SDK): follow the device test plan in `docs/META_GLASSES.md` (register,
 device list, session start/stop, camera permission, mock kit) and record the glasses' reported

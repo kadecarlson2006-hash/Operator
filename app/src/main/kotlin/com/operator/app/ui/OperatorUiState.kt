@@ -4,6 +4,7 @@ import com.operator.app.audio.AudioRoutes
 import com.operator.app.backend.AskState
 import com.operator.app.backend.SpeechState
 import com.operator.app.bluetooth.BluetoothStatus
+import com.operator.app.decision.AmbientState
 import com.operator.app.decision.DecisionState
 import com.operator.app.transcription.ListenState
 import com.operator.core.transcription.TranscriptEntry
@@ -34,6 +35,8 @@ data class OperatorUiState(
     val transcript: List<TranscriptEntry> = emptyList(),
     /** Milestone 12: what the decision stage last decided, and why. */
     val decision: DecisionState = DecisionState(),
+    /** Milestone 13: whether Operator decides on its own, and whether it is waiting for a lull. */
+    val ambient: AmbientState = AmbientState(),
     val glasses: GlassesState = GlassesState(providerName = "none", sdkPresent = false),
     val glassesActions: List<GlassesAction> = emptyList(),
     /** Short description of the last state event, for the diagnostics card. */
