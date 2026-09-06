@@ -214,6 +214,10 @@ Configuration comes from real environment variables first, then `.env`
 .\scripts\preflight.ps1
 ```
 
+```bash
+./scripts/preflight.sh
+```
+
 Checks `.env` is in place and not tracked, brings up the database, and reads the backend's own
 `/health` to report which provider slots are actually configured and what to set for the rest.
 Run it instead of guessing why nothing happens on the phone.

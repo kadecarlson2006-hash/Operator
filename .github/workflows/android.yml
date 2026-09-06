@@ -112,6 +112,10 @@ jobs:
           EOF
       - name: Memory API end to end (real PostgreSQL + pgvector)
         run: python3 backend/scripts/memory_api_smoke.py http://localhost:8080
+      - name: Unix preflight
+        run: |
+          touch .env
+          ./scripts/preflight.sh --skip-database
       - name: Backend log
         if: always()
         run: cat backend.log || true
