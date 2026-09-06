@@ -110,4 +110,44 @@ class InMemoryMemoryStoreTest {
         assertNotNull(touched.lastUsedAt)
         assertEquals(MemoryEventType.USED, store.events(user, java.util.UUID.fromString(m.id)).last().eventType)
     }
+
+    @Test
+    fun `conversation session CRUD is validated and user scoped`() = runTest {
+        val store = InMemoryMemoryStore()
+        val created = store.createSession(
+            user,
+            NewConversationSession(operatorMode = "WORK", witLevel = "DRY", promptVersion = "operator-v1"),
+        )
+        assertEquals(created, store.getSession(user, java.util.UUID.fromString(created.id)))
+        assertEquals(listOf(created.id), store.listSessions(user).map { it.id })
+        assertTrue(store.listSessions(java.util.UUID.randomUUID()).isEmpty())
+
+        val ended = store.updateSession(
+            user,
+            java.util.UUID.fromString(created.id),
+            ConversationSessionUpdate(endedAt = "2999-01-01T00:00:00Z", summary = "Finished the task"),
+        )
+        assertEquals("Finished the task", ended.summary)
+        assertEquals("2999-01-01T00:00:00Z", ended.endedAt)
+        val reopened = store.updateSession(
+            user,
+            java.util.UUID.fromString(created.id),
+            ConversationSessionUpdate(clearEndedAt = true, clearSummary = true),
+        )
+        assertNull(reopened.endedAt)
+        assertNull(reopened.summary)
+
+        assertFailsWith<MemoryValidationException> {
+            store.updateSession(user, java.util.UUID.fromString(created.id), ConversationSessionUpdate())
+        }
+        assertFailsWith<MemoryValidationException> {
+            store.updateSession(
+                user,
+                java.util.UUID.fromString(created.id),
+                ConversationSessionUpdate(endedAt = "2000-01-01T00:00:00Z"),
+            )
+        }
+        store.deleteSession(user, java.util.UUID.fromString(created.id))
+        assertFailsWith<EntityNotFoundException> { store.getSession(user, java.util.UUID.fromString(created.id)) }
+    }
 }

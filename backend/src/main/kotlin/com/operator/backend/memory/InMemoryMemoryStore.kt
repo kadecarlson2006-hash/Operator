@@ -21,6 +21,7 @@ class InMemoryMemoryStore(private val clock: Clock = Clock.systemUTC()) : Memory
     private val people = LinkedHashMap<UUID, Person>()
     private val projects = LinkedHashMap<UUID, Project>()
     private val organizations = LinkedHashMap<UUID, Organization>()
+    private val sessions = LinkedHashMap<UUID, ConversationSession>()
     private var eventSeq = 0L
 
     private fun now(): String = Instant.now(clock).toString()
@@ -187,12 +188,69 @@ class InMemoryMemoryStore(private val clock: Clock = Clock.systemUTC()) : Memory
 
     override suspend fun listOrganizations(userId: UUID, includeInactive: Boolean): List<Organization> = lock.withLock { organizations.values.filter { includeInactive || it.isActive } }
 
+    override suspend fun createSession(userId: UUID, session: NewConversationSession): ConversationSession = lock.withLock {
+        session.validate()
+        val id = UUID.randomUUID()
+        ConversationSession(
+            id = id.toString(),
+            userId = userId.toString(),
+            startedAt = now(),
+            operatorMode = session.operatorMode,
+            witLevel = session.witLevel,
+            promptVersion = session.promptVersion,
+            summary = session.summary,
+        ).also { sessions[id] = it }
+    }
+
+    override suspend fun getSession(userId: UUID, id: UUID): ConversationSession = lock.withLock {
+        findSession(userId, id)
+    }
+
+    override suspend fun listSessions(userId: UUID): List<ConversationSession> = lock.withLock {
+        sessions.values
+            .filter { it.userId == userId.toString() }
+            .sortedWith(compareByDescending<ConversationSession> { it.startedAt }.thenByDescending { it.id })
+    }
+
+    override suspend fun updateSession(
+        userId: UUID,
+        id: UUID,
+        update: ConversationSessionUpdate,
+    ): ConversationSession = lock.withLock {
+        update.validate()
+        val current = findSession(userId, id)
+        val changed = current.copy(
+            endedAt = if (update.clearEndedAt) null else update.endedAt ?: current.endedAt,
+            operatorMode = if (update.clearOperatorMode) null else update.operatorMode ?: current.operatorMode,
+            witLevel = if (update.clearWitLevel) null else update.witLevel ?: current.witLevel,
+            promptVersion = if (update.clearPromptVersion) null else update.promptVersion ?: current.promptVersion,
+            summary = if (update.clearSummary) null else update.summary ?: current.summary,
+        )
+        changed.endedAt?.let {
+            if (parseInstant(it, "endedAt").isBefore(parseInstant(changed.startedAt, "startedAt"))) {
+                throw MemoryValidationException("endedAt must not be before startedAt")
+            }
+        }
+        sessions[id] = changed
+        changed
+    }
+
+    override suspend fun deleteSession(userId: UUID, id: UUID) = lock.withLock {
+        findSession(userId, id)
+        sessions.remove(id)
+        Unit
+    }
+
     override suspend fun count(userId: UUID, includeInactive: Boolean): Long = lock.withLock {
         memories.values.count { it.userId == userId.toString() && (includeInactive || it.isActive) }.toLong()
     }
 
     private fun find(userId: UUID, id: UUID): Memory =
         memories[id]?.takeIf { it.userId == userId.toString() } ?: throw MemoryNotFoundException(id.toString())
+
+    private fun findSession(userId: UUID, id: UUID): ConversationSession =
+        sessions[id]?.takeIf { it.userId == userId.toString() }
+            ?: throw EntityNotFoundException("conversation session", id.toString())
 
     private fun log(memoryId: UUID, type: MemoryEventType, details: Map<String, String>) {
         events += MemoryEvent(++eventSeq, memoryId.toString(), type, now(), details)

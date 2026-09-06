@@ -297,6 +297,67 @@ class PostgresMemoryStore(private val dataSource: DataSource) : MemoryStore {
             }
         }
 
+    // ------------------------------------------------------------ conversation sessions
+
+    override suspend fun createSession(userId: UUID, session: NewConversationSession): ConversationSession = tx { c ->
+        session.validate()
+        val id = UUID.randomUUID()
+        c.prepareStatement(
+            "INSERT INTO conversation_sessions (id, user_id, operator_mode, wit_level, prompt_version, summary) VALUES (?, ?, ?, ?, ?, ?)",
+        ).use { st ->
+            st.setObject(1, id); st.setObject(2, userId); st.setString(3, session.operatorMode)
+            st.setString(4, session.witLevel); st.setString(5, session.promptVersion); st.setString(6, session.summary)
+            st.executeUpdate()
+        }
+        loadSession(c, userId, id)
+    }
+
+    override suspend fun getSession(userId: UUID, id: UUID): ConversationSession = tx { c -> loadSession(c, userId, id) }
+
+    override suspend fun listSessions(userId: UUID): List<ConversationSession> = tx { c ->
+        c.prepareStatement("$SELECT_SESSION WHERE user_id = ? ORDER BY started_at DESC, id DESC").use { st ->
+            st.setObject(1, userId)
+            st.executeQuery().use { rs -> generateSequence { if (rs.next()) rowToSession(rs) else null }.toList() }
+        }
+    }
+
+    override suspend fun updateSession(
+        userId: UUID,
+        id: UUID,
+        update: ConversationSessionUpdate,
+    ): ConversationSession = tx { c ->
+        update.validate()
+        val current = loadSession(c, userId, id)
+        val changed = current.copy(
+            endedAt = if (update.clearEndedAt) null else update.endedAt ?: current.endedAt,
+            operatorMode = if (update.clearOperatorMode) null else update.operatorMode ?: current.operatorMode,
+            witLevel = if (update.clearWitLevel) null else update.witLevel ?: current.witLevel,
+            promptVersion = if (update.clearPromptVersion) null else update.promptVersion ?: current.promptVersion,
+            summary = if (update.clearSummary) null else update.summary ?: current.summary,
+        )
+        changed.endedAt?.let {
+            if (parseInstant(it, "endedAt").isBefore(parseInstant(changed.startedAt, "startedAt"))) {
+                throw MemoryValidationException("endedAt must not be before startedAt")
+            }
+        }
+        c.prepareStatement(
+            "UPDATE conversation_sessions SET ended_at = ?, operator_mode = ?, wit_level = ?, prompt_version = ?, summary = ? WHERE id = ? AND user_id = ?",
+        ).use { st ->
+            st.setTimestamp(1, changed.endedAt?.let { Timestamp.from(Instant.parse(it)) })
+            st.setString(2, changed.operatorMode); st.setString(3, changed.witLevel)
+            st.setString(4, changed.promptVersion); st.setString(5, changed.summary)
+            st.setObject(6, id); st.setObject(7, userId); st.executeUpdate()
+        }
+        changed
+    }
+
+    override suspend fun deleteSession(userId: UUID, id: UUID) = tx { c ->
+        val deleted = c.prepareStatement("DELETE FROM conversation_sessions WHERE id = ? AND user_id = ?").use { st ->
+            st.setObject(1, id); st.setObject(2, userId); st.executeUpdate()
+        }
+        if (deleted == 0) throw EntityNotFoundException("conversation session", id.toString())
+    }
+
     override suspend fun count(userId: UUID, includeInactive: Boolean): Long = tx { c ->
         c.prepareStatement("SELECT count(*) FROM memories WHERE user_id = ?${if (includeInactive) "" else " AND is_active"}").use { st ->
             st.setObject(1, userId); st.executeQuery().use { rs -> rs.next(); rs.getLong(1) }
@@ -309,6 +370,14 @@ class PostgresMemoryStore(private val dataSource: DataSource) : MemoryStore {
         c.prepareStatement("$SELECT_MEMORY WHERE m.id = ? AND m.user_id = ?").use { st ->
             st.setObject(1, id); st.setObject(2, userId)
             st.executeQuery().use { rs -> if (rs.next()) rowToMemory(rs) else throw MemoryNotFoundException(id.toString()) }
+        }
+
+    private fun loadSession(c: Connection, userId: UUID, id: UUID): ConversationSession =
+        c.prepareStatement("$SELECT_SESSION WHERE id = ? AND user_id = ?").use { st ->
+            st.setObject(1, id); st.setObject(2, userId)
+            st.executeQuery().use { rs ->
+                if (rs.next()) rowToSession(rs) else throw EntityNotFoundException("conversation session", id.toString())
+            }
         }
 
     private fun requireEntity(c: Connection, table: String, kind: String, id: String) {
@@ -363,6 +432,17 @@ class PostgresMemoryStore(private val dataSource: DataSource) : MemoryStore {
         distance = if (withDistance) rs.getFloat("distance") else null,
     )
 
+    private fun rowToSession(rs: ResultSet): ConversationSession = ConversationSession(
+        id = rs.getObject("id", UUID::class.java).toString(),
+        userId = rs.getObject("user_id", UUID::class.java).toString(),
+        startedAt = rs.getTimestamp("started_at").toInstant().toString(),
+        endedAt = rs.getTimestamp("ended_at")?.toInstant()?.toString(),
+        operatorMode = rs.getString("operator_mode"),
+        witLevel = rs.getString("wit_level"),
+        promptVersion = rs.getString("prompt_version"),
+        summary = rs.getString("summary"),
+    )
+
     private fun toJson(map: Map<String, String>): String = json.encodeToString(map)
 
     private fun fromJson(text: String?): Map<String, String> =
@@ -371,6 +451,8 @@ class PostgresMemoryStore(private val dataSource: DataSource) : MemoryStore {
     private companion object {
         const val SELECT_MEMORY = """SELECT m.*, m.metadata::text AS metadata_text,
             EXISTS (SELECT 1 FROM memory_embeddings x WHERE x.memory_id = m.id) AS has_embedding FROM memories m"""
+        const val SELECT_SESSION =
+            "SELECT id, user_id, started_at, ended_at, operator_mode, wit_level, prompt_version, summary FROM conversation_sessions"
 
         fun vectorLiteral(vector: List<Float>): String = vector.joinToString(",", "[", "]")
     }

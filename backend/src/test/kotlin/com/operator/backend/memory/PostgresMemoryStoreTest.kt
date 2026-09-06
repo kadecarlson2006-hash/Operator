@@ -28,7 +28,7 @@ class PostgresMemoryStoreTest {
         dataSource.connection.use { connection ->
             connection.createStatement().use { statement ->
                 statement.execute(
-                    "TRUNCATE memory_events, memory_embeddings, memories, people, projects, organizations RESTART IDENTITY CASCADE",
+                    "TRUNCATE conversation_sessions, memory_events, memory_embeddings, memories, people, projects, organizations RESTART IDENTITY CASCADE",
                 )
             }
         }
@@ -141,6 +141,35 @@ class PostgresMemoryStoreTest {
         assertEquals(original.id, duplicate.existingId)
         assertEquals(listOf(original.id), store.search(DEFAULT_USER_ID, MemorySearch()).map { it.id })
         assertEquals(listOf(MemoryEventType.CREATED), store.events(DEFAULT_USER_ID, UUID.fromString(original.id)).map { it.eventType })
+    }
+
+    @Test
+    fun `conversation session CRUD persists in Postgres`() = runTest {
+        val created = store.createSession(
+            DEFAULT_USER_ID,
+            NewConversationSession(operatorMode = "WORK", witLevel = "DRY", promptVersion = "operator-v1"),
+        )
+        assertEquals(created, store.getSession(DEFAULT_USER_ID, UUID.fromString(created.id)))
+        assertEquals(listOf(created.id), store.listSessions(DEFAULT_USER_ID).map { it.id })
+
+        val ended = store.updateSession(
+            DEFAULT_USER_ID,
+            UUID.fromString(created.id),
+            ConversationSessionUpdate(endedAt = "2999-01-01T00:00:00Z", summary = "Finished the task"),
+        )
+        assertEquals("Finished the task", ended.summary)
+        assertEquals("2999-01-01T00:00:00Z", ended.endedAt)
+        val reopened = store.updateSession(
+            DEFAULT_USER_ID,
+            UUID.fromString(created.id),
+            ConversationSessionUpdate(clearEndedAt = true, clearSummary = true),
+        )
+        assertNull(reopened.endedAt)
+        assertNull(reopened.summary)
+
+        store.deleteSession(DEFAULT_USER_ID, UUID.fromString(created.id))
+        assertTrue(store.listSessions(DEFAULT_USER_ID).isEmpty())
+        assertFailsWith<EntityNotFoundException> { store.getSession(DEFAULT_USER_ID, UUID.fromString(created.id)) }
     }
 
     @Test

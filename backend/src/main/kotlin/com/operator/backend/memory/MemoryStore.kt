@@ -37,5 +37,11 @@ interface MemoryStore {
     suspend fun createOrganization(userId: UUID, organization: NewOrganization): Organization
     suspend fun listOrganizations(userId: UUID, includeInactive: Boolean = false): List<Organization>
 
+    suspend fun createSession(userId: UUID, session: NewConversationSession): ConversationSession
+    suspend fun getSession(userId: UUID, id: UUID): ConversationSession
+    suspend fun listSessions(userId: UUID): List<ConversationSession>
+    suspend fun updateSession(userId: UUID, id: UUID, update: ConversationSessionUpdate): ConversationSession
+    suspend fun deleteSession(userId: UUID, id: UUID)
+
     suspend fun count(userId: UUID, includeInactive: Boolean = false): Long
 }

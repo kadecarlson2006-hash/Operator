@@ -47,6 +47,7 @@ fun Route.memoryRoutes(
     demoSeedEnabled: Boolean,
     embeddings: EmbeddingProvider = NoEmbeddingProvider,
 ) {
+    conversationSessionRoutes(store)
     val backfill = EmbeddingBackfillService(store, embeddings)
     route("/memory") {
         get("/search") {
@@ -124,7 +125,3 @@ private fun RoutingCall.queryInt(name: String, default: Int): Int =
     request.queryParameters[name]?.let { value ->
         value.toIntOrNull() ?: throw MemoryValidationException("$name must be an integer")
     } ?: default
-
-private inline fun <reified E : Enum<E>> enumOr400(value: String, field: String): E =
-    enumValues<E>().firstOrNull { it.name.equals(value, ignoreCase = true) }
-        ?: throw MemoryValidationException("$field must be one of ${enumValues<E>().joinToString { it.name }}")

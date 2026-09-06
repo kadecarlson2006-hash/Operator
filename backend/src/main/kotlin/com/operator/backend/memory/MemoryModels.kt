@@ -2,6 +2,8 @@ package com.operator.backend.memory
 
 import com.operator.core.memory.MemoryType
 import com.operator.core.memory.PrivacyScope
+import com.operator.core.model.OperatorMode
+import com.operator.core.model.WitLevel
 import kotlinx.serialization.Serializable
 import java.time.Instant
 import java.util.UUID
@@ -184,6 +186,65 @@ data class NewOrganization(val name: String, val aliases: List<String> = emptyLi
     }
 }
 
+@Serializable
+data class ConversationSession(
+    val id: String,
+    val userId: String,
+    val startedAt: String,
+    val endedAt: String? = null,
+    val operatorMode: String? = null,
+    val witLevel: String? = null,
+    val promptVersion: String? = null,
+    val summary: String? = null,
+)
+
+@Serializable
+data class NewConversationSession(
+    val operatorMode: String? = null,
+    val witLevel: String? = null,
+    val promptVersion: String? = null,
+    val summary: String? = null,
+) {
+    fun validate() {
+        operatorMode?.let { enumOr400<OperatorMode>(it, "operatorMode") }
+        witLevel?.let { enumOr400<WitLevel>(it, "witLevel") }
+        validateOptionalSessionText(promptVersion, "promptVersion")
+    }
+}
+
+@Serializable
+data class ConversationSessionUpdate(
+    val endedAt: String? = null,
+    val operatorMode: String? = null,
+    val witLevel: String? = null,
+    val promptVersion: String? = null,
+    val summary: String? = null,
+    val clearEndedAt: Boolean = false,
+    val clearOperatorMode: Boolean = false,
+    val clearWitLevel: Boolean = false,
+    val clearPromptVersion: Boolean = false,
+    val clearSummary: Boolean = false,
+) {
+    fun validate() {
+        endedAt?.let { parseInstant(it, "endedAt") }
+        operatorMode?.let { enumOr400<OperatorMode>(it, "operatorMode") }
+        witLevel?.let { enumOr400<WitLevel>(it, "witLevel") }
+        validateOptionalSessionText(promptVersion, "promptVersion")
+        listOf(
+            "endedAt" to (endedAt != null && clearEndedAt),
+            "operatorMode" to (operatorMode != null && clearOperatorMode),
+            "witLevel" to (witLevel != null && clearWitLevel),
+            "promptVersion" to (promptVersion != null && clearPromptVersion),
+            "summary" to (summary != null && clearSummary),
+        ).firstOrNull { it.second }?.let { throw MemoryValidationException("${it.first} and its clear flag cannot both be set") }
+        if (isEmpty) throw MemoryValidationException("session update must contain at least one field")
+    }
+
+    private val isEmpty: Boolean
+        get() = endedAt == null && operatorMode == null && witLevel == null && promptVersion == null && summary == null &&
+            !clearEndedAt && !clearOperatorMode && !clearWitLevel && !clearPromptVersion && !clearSummary
+}
+
 // ---- errors (mapped to HTTP status codes in Application.kt) ----
 open class MemoryException(message: String) : RuntimeException(message)
 class MemoryValidationException(message: String) : MemoryException(message)
@@ -196,6 +257,14 @@ internal fun parseUuid(value: String, field: String): UUID =
 
 internal fun parseInstant(value: String, field: String): Instant =
     try { Instant.parse(value) } catch (e: Exception) { throw MemoryValidationException("$field is not an ISO-8601 instant") }
+
+private fun validateOptionalSessionText(value: String?, field: String) {
+    if (value != null && value.isBlank()) throw MemoryValidationException("$field must not be blank")
+}
+
+internal inline fun <reified E : Enum<E>> enumOr400(value: String, field: String): E =
+    enumValues<E>().firstOrNull { it.name.equals(value, ignoreCase = true) }
+        ?: throw MemoryValidationException("$field must be one of ${enumValues<E>().joinToString { it.name }}")
 
 /** Case-insensitive, whitespace-collapsed content key used for duplicate detection. */
 internal fun contentKey(content: String): String = content.trim().lowercase().replace(Regex("\\s+"), " ")
