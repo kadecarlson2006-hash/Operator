@@ -221,7 +221,12 @@ class ListenController(
         }
     }
 
-    private companion object {
+    /**
+     * Internal rather than private so the tests can feed exactly as much silence as
+     * [CALIBRATION_FRAMES] requires, instead of hard-coding a number that goes stale the next time
+     * calibration changes - which is how the last change broke six of them.
+     */
+    internal companion object {
         const val TAG = "ListenController"
         const val SAMPLE_RATE_HZ = 16_000
         const val FRAME_SAMPLES = 320 // 20 ms
