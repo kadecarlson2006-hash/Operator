@@ -37,6 +37,8 @@ param(
     # Must exceed MIN_DECISION_INTERVAL_SECONDS (default 20) or ambient calls refuse each other.
     [int]$GapSeconds = 21,
     [switch]$SkipAmbientWaits,
+    # Skips the grounded invoice run, which writes one memory to the store.
+    [switch]$SkipGrounded,
     [string]$OutFile
 )
 
@@ -58,6 +60,19 @@ function Invoke-Decide($payload) {
     } catch {
         return [PSCustomObject]@{ error = $_.Exception.Message }
     }
+}
+
+function Invoke-Remember($sentence) {
+    # Uses the explicit "remember that..." path on /ai/respond, which stores directly with no
+    # model call, so seeding costs nothing and cannot itself influence the decision under test.
+    $json = @{ prompt = $sentence } | ConvertTo-Json -Depth 4 -Compress
+    $content = [System.Net.Http.StringContent]::new($json, [System.Text.Encoding]::UTF8, "application/json")
+    try {
+        $res = $client.PostAsync("$BaseUrl/ai/respond", $content).GetAwaiter().GetResult()
+        $body = $res.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+        if (-not $res.IsSuccessStatusCode) { return $null }
+        return $body | ConvertFrom-Json
+    } catch { return $null }
 }
 
 # --- The scenarios ------------------------------------------------------------------
@@ -145,6 +160,35 @@ Write-Host "Silence is the expected outcome. SPOKE on ambient is the thing to ju
 Run-Group "FREE" "FREE - refused by local rules, no model call" $free $false
 Run-Group "AMBIENT" "AMBIENT - uninvited, the real test" $ambient (-not $SkipAmbientWaits)
 
+# The same disputed-invoice conversation, but with the answer in memory first.
+#
+# The un-grounded run returned NO_VERIFIED_INFORMATION: it declined for want of knowledge, not
+# because the moment was irrelevant. That is a different thing from being too timid to speak, and
+# this separates them. If it speaks here, the chain memory -> retrieval -> decision works and the
+# earlier silence was correct. If it still declines, the reticence is in the prompt.
+if (-not $SkipGrounded) {
+    Write-Host ""
+    Write-Host "GROUNDED - the invoice question again, with the answer in memory" -ForegroundColor Cyan
+    $seeded = Invoke-Remember "Remember that the payment terms with Halvorsen Supply are net thirty."
+    if ($null -eq $seeded) {
+        Write-Host "  [warn] could not store the memory; skipping. Is the ai slot configured?" -ForegroundColor Yellow
+    } else {
+        if ($seeded.memoryWritten) {
+            Write-Host ("  seeded: {0}   (updatedExisting={1}, embedded={2})" -f $seeded.memoryWritten.content, $seeded.memoryWritten.updatedExisting, $seeded.memoryWritten.embedded) -ForegroundColor DarkGray
+        } else {
+            Write-Host "  [warn] the prompt was not recognised as a memory command; it went to the model instead" -ForegroundColor Yellow
+        }
+        if (-not $SkipAmbientWaits) {
+            Write-Host ("  waiting {0}s so the decision interval does not refuse it..." -f $GapSeconds) -ForegroundColor DarkGray
+            Start-Sleep -Seconds $GapSeconds
+        }
+        $grounded = @(
+            @{ name = "invoice terms, grounded"; body = @{ trigger = "AMBIENT"; transcript = $factualError; mode = "WORK" } }
+        )
+        Run-Group "GROUNDED" "GROUNDED - same conversation, answer now in memory" $grounded $false
+    }
+}
+
 # An ambient call immediately after the last one: the interval should refuse it for nothing.
 Write-Host ""
 Write-Host "IMMEDIATE REPEAT - should be refused free as DECIDED_RECENTLY" -ForegroundColor Cyan
@@ -173,6 +217,19 @@ Write-Host ("  ambient scenarios : {0}" -f @($amb).Count)
 Write-Host ("  ambient spoke     : {0}   <- the number that matters" -f $spokeCount)
 Write-Host ("  model calls       : {0}" -f $modelCalls)
 Write-Host ("  free refusals     : {0}" -f $freeRefusals)
+$g = $results | Where-Object { $_.Group -eq "GROUNDED" }
+if ($g) {
+    $u = $results | Where-Object { $_.Scenario -eq "disputed invoice terms" }
+    Write-Host ""
+    Write-Host "  Invoice question, without and with the answer in memory:"
+    Write-Host ("    ungrounded : {0,-7} {1}" -f $u.Spoke, $u.Reason)
+    Write-Host ("    grounded   : {0,-7} {1}" -f $g.Spoke, $g.Reason)
+    if ($g.Spoke -eq "SPOKE" -and $u.Spoke -ne "SPOKE") {
+        Write-Host "    -> memory changed the decision: the earlier silence was want of knowledge, not reticence." -ForegroundColor Green
+    } elseif ($g.Spoke -ne "SPOKE") {
+        Write-Host "    -> still silent with the answer in hand: the reticence is in the prompt, not the grounding." -ForegroundColor Yellow
+    }
+}
 Write-Host ""
 Write-Host "  Check GET /usage for what the model calls cost." -ForegroundColor DarkGray
 Write-Host "  Judge the SPOKE lines yourself: was any of it worth hearing?" -ForegroundColor DarkGray

@@ -12,7 +12,8 @@ first time most of this code meets reality. `docs/RISKS_AND_UNKNOWNS.md` lists w
 unknown, and each stage below names the risk numbers it closes.
 
 Per-milestone detail lives in `CURRENT_STATUS.md` under "Next tests". This file is the running
-order and the setup around it.
+order and the setup around it. [HANDOFF.md](HANDOFF.md) is where testing got to, the traps that
+have already cost time, and the rules that do not bend - read it first if you are picking this up.
 
 ---
 

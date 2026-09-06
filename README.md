@@ -7,7 +7,7 @@ it whispers something useful, corrective, or funny.
 
 > Silence is the default. `NO_RESPONSE` is the most common outcome by design.
 
-**Status:** Milestones 0–13 implemented. Nothing has yet run against a live model, transcription, or TTS provider, and Milestones 1–3 still need target-device verification. See [CURRENT_STATUS.md](CURRENT_STATUS.md), [TESTING.md](TESTING.md) and [docs/META_GLASSES.md](docs/META_GLASSES.md).
+**Status:** Milestones 0–13 implemented. Nothing has yet run against a live model, transcription, or TTS provider, and Milestones 1–3 still need target-device verification. See [CURRENT_STATUS.md](CURRENT_STATUS.md), [TESTING.md](TESTING.md), [HANDOFF.md](HANDOFF.md) and [docs/META_GLASSES.md](docs/META_GLASSES.md).
 
 ## Hardware target
 
