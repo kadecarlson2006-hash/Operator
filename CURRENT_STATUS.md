@@ -12,6 +12,17 @@ for closing them is in [TESTING.md](TESTING.md).
 
 ## What works (verified)
 
+- **The decision model keeps quiet, 2026-09-06.** `scripts/decide-drill.ps1` against
+  `openai/gpt-5.6-luna`: **0 of 4** ambient scenarios spoke, six local refusals cost nothing, and
+  `DECIDED_RECENTLY` correctly refused an immediate repeat for free. The important part is *why*
+  it was silent - `suppressedAfterModel` was false on every row, so the model declined of its own
+  accord and the policy floors never fired. Chit-chat returned NOTHING_WORTH_SAYING; a disputed
+  invoice figure in WORK mode returned NO_VERIFIED_INFORMATION, declining for want of grounding
+  rather than relevance. Both invited triggers answered normally. Ambient decisions took
+  1447-1981 ms. Two things this does **not** establish: the confidence and relevance floors are
+  still untested, because nothing reached them (risk 44), and four constructed scenarios are not
+  a real room (risk 43).
+
 - **Memory works against a real model, 2026-09-06.** The brief's acceptance scenario end to end
   with live embeddings: "Remember that Chris handles the west territory" stored **free**
   (`model: none`, no round trip) and came back `embedded: true`; "Who handles the west?" retrieved
