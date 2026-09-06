@@ -45,6 +45,13 @@ data class OperatorConfig(
     val rollingContextSeconds: Int = 60,
     val minCommentIntervalSeconds: Int = 45,
     val maxCommentsPer5Minutes: Int = 3,
+    /**
+     * How often Operator may *ask* whether to speak (Milestone 13). Distinct from the comment
+     * limits above, which bound nothing while Operator stays silent — and staying silent is the
+     * common case.
+     */
+    val minDecisionIntervalSeconds: Int = 20,
+    val maxDecisionsPer5Minutes: Int = 12,
 
     // Milestone 1 audio test.
     val recordTestDurationMillis: Long = 4_000,
@@ -53,6 +60,8 @@ data class OperatorConfig(
         require(rollingContextSeconds > 0) { "rollingContextSeconds must be > 0" }
         require(minCommentIntervalSeconds >= 0) { "minCommentIntervalSeconds must be >= 0" }
         require(maxCommentsPer5Minutes >= 0) { "maxCommentsPer5Minutes must be >= 0" }
+        require(minDecisionIntervalSeconds >= 0) { "minDecisionIntervalSeconds must be >= 0" }
+        require(maxDecisionsPer5Minutes >= 0) { "maxDecisionsPer5Minutes must be >= 0" }
         require(recordTestDurationMillis in 1_000..30_000) { "recordTestDurationMillis must be 1s..30s" }
     }
 
@@ -86,6 +95,8 @@ data class OperatorConfig(
                 rollingContextSeconds = int(Keys.ROLLING_CONTEXT_SECONDS, defaults.rollingContextSeconds),
                 minCommentIntervalSeconds = int(Keys.MIN_COMMENT_INTERVAL_SECONDS, defaults.minCommentIntervalSeconds),
                 maxCommentsPer5Minutes = int(Keys.MAX_COMMENTS_PER_5_MINUTES, defaults.maxCommentsPer5Minutes),
+                minDecisionIntervalSeconds = int(Keys.MIN_DECISION_INTERVAL_SECONDS, defaults.minDecisionIntervalSeconds),
+                maxDecisionsPer5Minutes = int(Keys.MAX_DECISIONS_PER_5_MINUTES, defaults.maxDecisionsPer5Minutes),
                 recordTestDurationMillis = long(Keys.RECORD_TEST_DURATION_MILLIS, defaults.recordTestDurationMillis),
             )
         }
@@ -111,6 +122,8 @@ data class OperatorConfig(
         const val ROLLING_CONTEXT_SECONDS = "ROLLING_CONTEXT_SECONDS"
         const val MIN_COMMENT_INTERVAL_SECONDS = "MIN_COMMENT_INTERVAL_SECONDS"
         const val MAX_COMMENTS_PER_5_MINUTES = "MAX_COMMENTS_PER_5_MINUTES"
+        const val MIN_DECISION_INTERVAL_SECONDS = "MIN_DECISION_INTERVAL_SECONDS"
+        const val MAX_DECISIONS_PER_5_MINUTES = "MAX_DECISIONS_PER_5_MINUTES"
         const val RECORD_TEST_DURATION_MILLIS = "OPERATOR_RECORD_TEST_DURATION_MILLIS"
     }
 }

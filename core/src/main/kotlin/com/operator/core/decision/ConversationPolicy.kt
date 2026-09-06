@@ -20,6 +20,16 @@ import com.operator.core.model.OperatorMode
 class ConversationPolicy(
     private val minCommentIntervalSeconds: Int,
     private val maxCommentsPer5Minutes: Int,
+    /**
+     * How long to wait between *asking* the model, as opposed to between speaking (Milestone 13).
+     *
+     * Every other limit here is keyed on when Operator last spoke, which bounds nothing while it
+     * stays silent — and silence is the common case by design. Under Milestone 12 the user's
+     * finger was the bound; once deciding is automatic, a busy room would buy a model call per
+     * utterance forever. These two are the only limits that hold when Operator says nothing.
+     */
+    private val minDecisionIntervalSeconds: Int = 20,
+    private val maxDecisionsPer5Minutes: Int = 12,
     /** A comment below this confidence is not worth interrupting for. */
     private val minConfidence: Float = 0.6f,
     /** Nor is one the model itself judges barely relevant. */
@@ -31,11 +41,16 @@ class ConversationPolicy(
     init {
         require(minCommentIntervalSeconds >= 0) { "minCommentIntervalSeconds must be >= 0" }
         require(maxCommentsPer5Minutes >= 0) { "maxCommentsPer5Minutes must be >= 0" }
+        require(minDecisionIntervalSeconds >= 0) { "minDecisionIntervalSeconds must be >= 0" }
+        require(maxDecisionsPer5Minutes >= 0) { "maxDecisionsPer5Minutes must be >= 0" }
         require(maxSentences >= 1) { "maxSentences must be >= 1" }
     }
 
     /** When Operator actually spoke, newest last. Bounded: only the last five minutes matter. */
     private val spokenAt = ArrayDeque<Long>()
+
+    /** When the model was actually consulted, spoken or not. This is what costs money. */
+    private val decidedAt = ArrayDeque<Long>()
 
     /**
      * Whether the model should be consulted at all. Returns a reason code when it should not —
@@ -58,6 +73,12 @@ class ConversationPolicy(
                 if (now - last < minCommentIntervalSeconds * 1_000L) return "RECENTLY_SPOKE"
             }
             if (spokenAt.size >= maxCommentsPer5Minutes) return "RATE_LIMITED"
+
+            // The two limits that still hold when Operator says nothing (Milestone 13).
+            decidedAt.lastOrNull()?.let { last ->
+                if (now - last < minDecisionIntervalSeconds * 1_000L) return "DECIDED_RECENTLY"
+            }
+            if (decidedAt.size >= maxDecisionsPer5Minutes) return "DECISION_BUDGET"
         }
         return null
     }
@@ -88,6 +109,16 @@ class ConversationPolicy(
         return decision
     }
 
+    /**
+     * Records that the model was consulted. Invited decisions are recorded too — they cost the
+     * same — so an automatic decision immediately afterwards does not spend twice; they are simply
+     * never *refused* by the budget, because the user asked.
+     */
+    fun recordDecision(atMillis: Long = clock()) {
+        decidedAt.addLast(atMillis)
+        prune(atMillis)
+    }
+
     /** Records that Operator spoke, which is what the interval and rate limits are measured from. */
     fun recordSpoken(atMillis: Long = clock()) {
         spokenAt.addLast(atMillis)
@@ -100,11 +131,21 @@ class ConversationPolicy(
         return spokenAt.size
     }
 
-    fun reset() = spokenAt.clear()
+    /** Model calls inside the trailing five-minute window, spoken or not. */
+    fun recentDecisionCount(): Int {
+        prune(clock())
+        return decidedAt.size
+    }
+
+    fun reset() {
+        spokenAt.clear()
+        decidedAt.clear()
+    }
 
     private fun prune(now: Long) {
         val cutoff = now - WINDOW_MILLIS
         while (spokenAt.isNotEmpty() && spokenAt.first() < cutoff) spokenAt.removeFirst()
+        while (decidedAt.isNotEmpty() && decidedAt.first() < cutoff) decidedAt.removeFirst()
     }
 
     private companion object {

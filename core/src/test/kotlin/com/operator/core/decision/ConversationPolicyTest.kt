@@ -17,8 +17,14 @@ class ConversationPolicyTest {
     private fun policy(
         minIntervalSeconds: Int = 45,
         maxPer5Minutes: Int = 3,
+        minDecisionIntervalSeconds: Int = 0,
+        maxDecisionsPer5Minutes: Int = 1_000,
         clock: FakeClock = FakeClock(),
-    ) = ConversationPolicy(minIntervalSeconds, maxPer5Minutes, clock = clock) to clock
+    ) = ConversationPolicy(
+        minIntervalSeconds, maxPer5Minutes,
+        minDecisionIntervalSeconds, maxDecisionsPer5Minutes,
+        clock = clock,
+    ) to clock
 
     private fun ambient(
         transcript: String = "someone is talking about the deadline",
@@ -131,6 +137,75 @@ class ConversationPolicyTest {
         assertEquals("RECENTLY_SPOKE", p.gate(ambient()), "ambient is still rate limited")
         assertNull(p.gate(DecisionRequest(DecisionTrigger.COMMENT_NOW, "x")), "the user asked")
         assertNull(p.gate(DecisionRequest(DecisionTrigger.DIRECT_ADDRESS, "x")), "the user asked")
+    }
+
+    // --- the decision budget: the only limits that hold while Operator stays silent ---
+
+    @Test
+    fun `staying silent does not exempt Operator from the decision interval`() {
+        val (p, clock) = policy(minDecisionIntervalSeconds = 20)
+        assertNull(p.gate(ambient()))
+        p.recordDecision()          // the model was asked and said nothing
+
+        clock.now = 5_000
+        assertEquals(
+            "DECIDED_RECENTLY",
+            p.gate(ambient()),
+            "every other limit keys on speaking; without this, silence costs a call per utterance",
+        )
+
+        clock.now = 21_000
+        assertNull(p.gate(ambient()))
+    }
+
+    @Test
+    fun `the decision budget caps spend over five minutes and then expires`() {
+        val (p, clock) = policy(maxDecisionsPer5Minutes = 4)
+        repeat(4) {
+            assertNull(p.gate(ambient()))
+            p.recordDecision()
+            clock.now += 1_000
+        }
+        assertEquals("DECISION_BUDGET", p.gate(ambient()))
+        assertEquals(4, p.recentDecisionCount())
+
+        clock.now += 5 * 60 * 1_000
+        assertNull(p.gate(ambient()))
+        assertEquals(0, p.recentDecisionCount())
+    }
+
+    @Test
+    fun `an explicit request is never refused by the budget but still counts against it`() {
+        val (p, clock) = policy(minDecisionIntervalSeconds = 20, maxDecisionsPer5Minutes = 1)
+        p.recordDecision()
+        clock.now = 1_000
+
+        assertNull(p.gate(DecisionRequest(DecisionTrigger.COMMENT_NOW, "x")), "the user asked")
+        p.recordDecision()
+
+        assertEquals(2, p.recentDecisionCount(), "an invited call costs the same and is counted")
+        assertEquals("DECIDED_RECENTLY", p.gate(ambient()), "so ambient does not spend twice")
+    }
+
+    @Test
+    fun `speaking and deciding are counted separately`() {
+        val (p, _) = policy(minIntervalSeconds = 0, minDecisionIntervalSeconds = 0)
+        p.recordDecision()
+        p.recordDecision()
+        p.recordSpoken()
+
+        assertEquals(2, p.recentDecisionCount())
+        assertEquals(1, p.recentCommentCount(), "most decisions produce silence, and that is the point")
+    }
+
+    @Test
+    fun `reset clears both histories`() {
+        val (p, _) = policy()
+        p.recordDecision()
+        p.recordSpoken()
+        p.reset()
+        assertEquals(0, p.recentDecisionCount())
+        assertEquals(0, p.recentCommentCount())
     }
 
     // --- the review: is what the model returned worth saying? ---
