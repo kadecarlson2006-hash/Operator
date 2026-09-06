@@ -34,6 +34,8 @@ import com.operator.core.model.Subsystem
 import com.operator.core.model.SubsystemState
 import com.operator.core.model.SubsystemStatus
 import com.operator.core.state.OperatorStateManager
+import com.operator.app.remote.RemoteControlCoordinator
+import com.operator.core.remote.RemoteAction
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -148,6 +150,36 @@ class OperatorContainer(app: Application) {
         scope = appScope,
         decide = { decision.request(trigger = "AMBIENT") },
         audioAllowed = { stateManager.current.let { !it.muted && it.isProcessing } },
+    )
+
+    /**
+     * Milestone 15: a physical button, when one is connected.
+     *
+     * Foreground only - key events arrive through the activity. Nothing is claimed about any
+     * particular remote: this responds to whatever HID or media keys the platform delivers, which
+     * is the generic path risk 10 says to design for while the hardware question is open.
+     */
+    val remote = RemoteControlCoordinator(
+        scope = appScope,
+        speaking = { speech.state.value.busy },
+        onAction = { action ->
+            when (action) {
+                // Asks Operator to answer as though addressed, using the rolling window. A true
+                // hold-to-capture, where the button gates the microphone, would need the listen
+                // path driven by the button rather than the panel; this is the useful half that
+                // works with what is already running.
+                RemoteAction.PUSH_TO_TALK -> decision.request(trigger = "DIRECT_ADDRESS")
+                RemoteAction.COMMENT_NOW -> decision.request(trigger = "COMMENT_NOW")
+                // Through the coordinator, not the speech controller, so the microphone resumes
+                // afterwards exactly as it does for the on-screen stop (ADR-037).
+                RemoteAction.STOP_SPEAKING -> glassesAudio.stopSpeaking()
+                // The same call the on-screen control makes, so a remote cannot reach a mute the
+                // rest of the app does not know about. It toggles: whatever silenced Operator
+                // should be able to bring it back, and a remote you cannot un-mute from is worse
+                // than one you cannot mute from.
+                RemoteAction.MUTE -> stateManager.toggleMute()
+            }
+        },
     )
 
     /** Meta Wearables toolkit when compiled in, otherwise an honest no-op (ADR-004 / ADR-013). */

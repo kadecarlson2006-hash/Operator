@@ -549,3 +549,38 @@ else was saying at the time does not improve that, and the scores are the part t
 the floors measurable: until now the confidence and relevance thresholds have been guesses nothing
 could test, because they only judge a model that wants to speak (risk 44). The mean scores of the
 comments a user actually rejected are the first evidence of what those floors should have been.
+
+## ADR-047: The remote is a set of gestures, not a device driver
+
+**Status:** Accepted (Milestone 15)
+
+Milestone 15 was written down as "BLE ring / remote". No ring exists to test against, and risk 10
+has said since the start to design around generic Android HID first. So what is built is a mapping
+from button presses to Operator actions, driven by whatever key codes the platform delivers, with
+no knowledge of any particular product.
+
+The classification lives in `:core` as a pure function of press timings, which matters more here
+than usual: with no hardware, unit tests are the only thing exercising any of it. A driver written
+against a device nobody has would be untested code pretending to be a feature.
+
+The gestures:
+
+- **Hold** is push-to-talk. Holding to speak is the gesture people already know from every
+  walkie-talkie, and a hold cannot be triggered by brushing the button.
+- **Single tap** asks for a comment, or stops Operator if it is mid-sentence. Interrupting is what
+  a tap should do while something is talking at you, and which of the two it means is read when the
+  tap resolves rather than when it lands, because that is the moment it takes effect.
+- **Double tap** toggles mute. Two taps is hard to do by accident and quick to do in a hurry.
+
+Mute is deliberately *not* the long press, even though it is the most serious action: a long press
+is indistinguishable from a button snagged on a sleeve. It toggles rather than latches, because a
+remote you cannot un-mute from is worse than one you cannot mute from.
+
+A single tap cannot be classified when it happens, since it may be the first half of a double, so
+it waits out the double-press window. Every tap therefore costs that delay. Acting immediately and
+then undoing it would be worse on a device that speaks out loud: Operator would start a sentence
+and then stop, which is precisely the failure the anti-annoyance work exists to prevent.
+
+Key events arrive through the activity, so this is foreground only. Capturing media buttons
+system-wide needs a MediaSession that survives the screen going off, which is worth building once
+there is hardware to point at it (risk 54).

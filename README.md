@@ -258,4 +258,4 @@ Highlights:
 3. Meta device access ✅ (1–3 pending device check)  4. Backend skeleton ✅
 5. Memory database v1 ✅  6. Basic text AI ✅  7. Memory-aware text AI ✅  8. Push to talk ✅  9. ElevenLabs voice ✅  10. Glasses audio ✅ (device check pending)  11. Rolling transcription ✅ (device check pending)
 12. Response decision engine ✅ (device check pending)  13. Active Operator ✅ (off by default; device check pending)  14. Feedback learning ✅ (backend; app surface pending)
-15. BLE ring / remote  16. Camera context  17. Work integrations
+15. BLE ring / remote ✅ (generic HID gestures; no ring hardware tested)  16. Camera context  17. Work integrations
