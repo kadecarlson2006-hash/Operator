@@ -55,8 +55,30 @@ class FeedbackRoutesTest {
 
     private lateinit var ai: FakeAi
 
-    private fun ApplicationTestBuilder.setup(reply: String = SPEAK_JSON) {
-        val config = BackendConfig(operator = OperatorConfig(fastModelId = "v/fast", decisionModelId = "v/decide"))
+    private fun ApplicationTestBuilder.setup(
+        reply: String = SPEAK_JSON,
+        /**
+         * Zero by default so a test about feedback is not silently answered by the comment
+         * interval instead. Leaving it at its real value made the end-to-end test below pass its
+         * first assertion for the wrong reason: the second decision was refused as RECENTLY_SPOKE
+         * before the model was ever asked, so the feedback penalty was never exercised.
+         */
+        minCommentIntervalSeconds: Int = 0,
+        /**
+         * Likewise zero. The Milestone 13 interval is 20 s between *asking*, so two decisions
+         * milliseconds apart are refused as DECIDED_RECENTLY before the model is consulted -
+         * which is the budget working, and which silently hid what this test is measuring.
+         */
+        minDecisionIntervalSeconds: Int = 0,
+    ) {
+        val config = BackendConfig(
+            operator = OperatorConfig(
+                fastModelId = "v/fast",
+                decisionModelId = "v/decide",
+                minCommentIntervalSeconds = minCommentIntervalSeconds,
+                minDecisionIntervalSeconds = minDecisionIntervalSeconds,
+            ),
+        )
         ai = FakeAi(reply)
         val deps = BackendDependencies(
             config, OkDb, ProviderRegistry(config), InMemoryMemoryStore(),
@@ -172,7 +194,43 @@ class FeedbackRoutesTest {
         )
     }
 
+    @Test
+    fun `a complaint suppresses a later marginal comment through the whole path`() = testApplication {
+        // The end-to-end version of ADR-045. The policy-level test proves the arithmetic; this
+        // proves the arithmetic is actually wired into the endpoint the phone calls.
+        setup(MARGINAL_JSON)
+
+        val before = client.post("/decide") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"trigger":"AMBIENT","transcript":["Someone: the deadline is Thursday"]}""")
+        }
+        assertTrue(
+            Json.parseToJsonElement(before.bodyAsText()).jsonObject["shouldSpeak"]!!.jsonPrimitive.content.toBoolean(),
+            "a marginal comment should get through before anybody complains",
+        )
+
+        send(client, """{"comment":"an earlier remark nobody wanted","verdict":"UNWANTED"}""")
+
+        val after = client.post("/decide") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"trigger":"AMBIENT","transcript":["Someone: the deadline is Friday now"]}""")
+        }
+        val body = Json.parseToJsonElement(after.bodyAsText()).jsonObject
+        assertTrue(
+            !body["shouldSpeak"]!!.jsonPrimitive.content.toBoolean(),
+            "the same marginal comment should be suppressed once a complaint has been recorded",
+        )
+        assertTrue(
+            body["suppressedAfterModel"]!!.jsonPrimitive.content.toBoolean(),
+            "the model still wanted to speak; the floors are what stopped it",
+        )
+    }
+
     private companion object {
+        /** Just above the 0.6 / 0.5 floors, so one complaint is enough to push it under. */
+        const val MARGINAL_JSON =
+            """{"shouldSpeak":true,"category":"USEFUL_CONTEXT","confidence":0.62,"urgency":0.3,"relevance":0.52,"response":"The deadline moved."}"""
+
         const val SPEAK_JSON =
             """{"shouldSpeak":true,"category":"USEFUL_CONTEXT","confidence":0.9,"urgency":0.4,"relevance":0.8,"response":"The deadline moved to Thursday."}"""
     }
