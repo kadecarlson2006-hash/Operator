@@ -13,7 +13,7 @@ transcription key, or both.
 
 | Stage | State |
 |-------|-------|
-| 1 - device checks (M1-M3) | **not started.** Needs the APK on the Galaxy. Oldest unverified code in the project. |
+| 1 - device checks (M1-M3) | **ready to run.** The app builds and launches on the Galaxy as of 2026-09-06. M1 and M2 need no keys; M3 needs a GitHub token (see below). Oldest unverified code in the project - start here. |
 | 2 - first live model call | **done.** `deepseek/deepseek-v4-flash`, 2019 ms, $0.0000688. Risks 27, 28 closed. |
 | 3 - memory round trip | **done.** Stored free, recalled at semantic 0.62 with real embeddings. |
 | 4 - hearing | **unblocked** - key configured 2026-09-06. Needs the APK. Wire format still SDK-derived (risks 34, 35). |
@@ -46,8 +46,12 @@ come *down* rather than being tuned alone. Measure the whole path before moving 
    The chain memory -> retrieval -> decision -> response is proven against live providers. Re-run
    `.\scripts\decide-drill.ps1` after any prompt or threshold change: it is the cheapest
    regression check that needs no phone.
-2. **Stage 1 on the phone.** Independent of every key. Android Studio is installed;
-   `.\gradlew.bat :app:assembleDebug` or build from the IDE.
+2. **Stage 1 on the phone - do this next.** The app is installed and running; nothing else is
+   needed for M1 and M2. `CURRENT_STATUS.md` has the step lists. Milestone 1: GRANT MICROPHONE,
+   RECORD TEST, PLAY TEST, and check the reported devices are the ones expected. Milestone 2:
+   GRANT BLUETOOTH, then A2DP output, SCO input, SCO output, then disconnect and confirm it falls
+   back to DEFAULT. Record the SCO bring-up time and watch for `routedDevice was never reported`
+   in the log, which would mean the phone is not telling us where audio actually went (risk 13).
 3. **Stage 4**, once the transcription key question below is answered.
 4. **Stage 5, then the phone half of stage 6.** In that order: Active Operator is only
    interpretable once speech out works.
@@ -66,6 +70,35 @@ makes that a one-line change. Do not implement the fallback unless the user asks
 
 Stage 4 is therefore unblocked and needs only the APK. Note the backend must be restarted after
 editing `.env`; config is read once at startup.
+
+## The phone is set up
+
+The APK builds and runs on the Galaxy as of 2026-09-06, from Android Studio (Open the
+`C:\Users\Vector\Operator` folder, then Run). That was `:app`'s first build outside CI and it
+needed no code changes. Building from the command line also works:
+`.\gradlew.bat :app:assembleDebug`, APK at `app\build\outputs\apk\debug\app-debug.apk`.
+
+`local.properties` (git-ignored, not in the repo) is configured. Two things about it:
+
+- **`OPERATOR_BACKEND_URL` is the laptop's LAN IP**, currently `http://192.168.1.124:8080`, not
+  localhost - the phone cannot reach localhost. **It changes when the network does**, so if the
+  app suddenly cannot reach the backend, check this before assuming anything is broken. Phone and
+  laptop must be on the same Wi-Fi, and Windows Firewall prompts on the first connection.
+- **The model IDs in it are display-only.** The app reads them into `BuildConfig` for its
+  diagnostics panel; it asks the backend for a *tier* (FAST/DEEP/VISION) and never names a model.
+  Changing them there changes nothing but the readout. `OPERATOR_EMBEDDING_MODEL_ID` is not read
+  by the app at all.
+
+`github_token` is still empty, so `:glasses-meta` is not compiled in and the Glasses panel reads
+"not compiled in". That blocks **Milestone 3 only**. To enable it: a *classic* GitHub token with
+`read:packages` and nothing else, into `local.properties`, then re-sync. Milestones 1, 2, and
+stages 4 and 5 do not need it.
+
+The user had not used Android Studio before this session. Sync after any `local.properties`
+change: **File -> Sync Project with Gradle Files**, or the "Sync Now" link in the bar across the
+top of the editor. Logcat is the bottom panel; filter it on `Operator` to see the route logs,
+which is most of what stage 1 involves. If Android Studio offers to upgrade AGP or Gradle,
+**decline** - 9.4.0 and 9.6.0 are pinned and CI is green on them.
 
 ## Traps that have already cost time
 
