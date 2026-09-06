@@ -2,6 +2,7 @@ package com.operator.backend.providers
 
 import com.operator.backend.ai.OpenRouterProvider
 import com.operator.backend.config.BackendConfig
+import com.operator.backend.tts.ElevenLabsTTSProvider
 import com.operator.backend.transcription.OpenAiCompatibleTranscriptionProvider
 import com.operator.core.ai.AIProvider
 import com.operator.core.ai.AIRequest
@@ -11,7 +12,7 @@ import com.operator.core.transcription.Transcript
 import com.operator.core.transcription.TranscriptionProvider
 import com.operator.core.tts.TTSProvider
 import com.operator.core.tts.TTSRequest
-import com.operator.core.tts.TTSResult
+import com.operator.core.tts.TTSAudioStream
 import kotlinx.serialization.Serializable
 
 /**
@@ -27,7 +28,13 @@ class ProviderRegistry(config: BackendConfig) {
     } else {
         NotConfiguredAIProvider
     }
-    val tts: TTSProvider = NotConfiguredTTSProvider
+    val tts: TTSProvider = if (
+        config.operator.ttsProvider.equals("elevenlabs", ignoreCase = true) && config.elevenLabsConfigured
+    ) {
+        ElevenLabsTTSProvider(config.elevenLabsApiKey!!)
+    } else {
+        NotConfiguredTTSProvider
+    }
 
     /** Real speech-to-text once a key and a model are configured, otherwise a provider that fails loudly. */
     val transcription: TranscriptionProvider = if (config.transcriptionConfigured) {
@@ -55,8 +62,14 @@ class ProviderRegistry(config: BackendConfig) {
         ),
         tts = SlotStatus(
             provider = config.operator.ttsProvider ?: "none",
-            configured = config.operator.ttsProvider == "elevenlabs" && config.elevenLabsConfigured && !config.operator.elevenLabsVoiceId.isNullOrBlank(),
-            detail = config.operator.elevenLabsVoiceId?.let { "voice=$it" } ?: "no voice ID configured",
+            configured = config.operator.ttsProvider.equals("elevenlabs", ignoreCase = true) &&
+                config.elevenLabsConfigured &&
+                !config.operator.elevenLabsVoiceId.isNullOrBlank() &&
+                !config.operator.elevenLabsModelId.isNullOrBlank(),
+            detail = listOf(
+                "voice=${config.operator.elevenLabsVoiceId ?: "missing"}",
+                "model=${config.operator.elevenLabsModelId ?: "missing"}",
+            ).joinToString(" "),
         ),
         transcription = SlotStatus(
             provider = if (config.transcriptionConfigured) (config.operator.transcriptionProvider ?: "openai-compatible") else "none",
@@ -79,6 +92,7 @@ data class ProviderStatus(val ai: SlotStatus, val tts: SlotStatus, val transcrip
 fun ProviderRegistry.close() {
     (ai as? OpenRouterProvider)?.close()
     (transcription as? OpenAiCompatibleTranscriptionProvider)?.close()
+    (tts as? ElevenLabsTTSProvider)?.close()
 }
 
 class ProviderNotConfiguredException(slot: String) : IllegalStateException("$slot provider is not configured")
@@ -89,7 +103,7 @@ object NotConfiguredAIProvider : AIProvider {
 
 object NotConfiguredTTSProvider : TTSProvider {
     override val name = "none"
-    override suspend fun speak(request: TTSRequest): TTSResult = throw ProviderNotConfiguredException("TTS")
+    override suspend fun open(request: TTSRequest): TTSAudioStream = throw ProviderNotConfiguredException("TTS")
     override fun cancel() = Unit
 }
 

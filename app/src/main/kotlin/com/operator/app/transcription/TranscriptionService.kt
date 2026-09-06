@@ -28,9 +28,10 @@ import com.operator.app.R
  * says plainly that Operator is listening and carries a STOP action that works without opening
  * the app.
  *
- * The service owns no audio itself: [ListenController] in the container does. This exists purely
- * to hold the process in the foreground for the lifetime of a listening session, so that stopping
- * is a single, obvious operation from either the UI or the notification.
+ * The service owns no audio itself. It holds the process in the foreground for the lifetime of a
+ * listening session; `GlassesAudioCoordinator` (Milestone 10) decides who actually holds the
+ * microphone, pausing capture while Operator speaks. The service always goes through the
+ * coordinator, never straight to [ListenController], so those pauses and resumes stay consistent.
  */
 class TranscriptionService : Service() {
 
@@ -52,19 +53,28 @@ class TranscriptionService : Service() {
         }
 
         startInForeground()
-        container.listen.start(container.loopback.state.value.selection)
+        // Milestone 10 owns whether the microphone may be taken at all — it refuses while
+        // Operator is speaking, muted, or OFF. Holding the foreground with no microphone would be
+        // a notification that lies, so if the coordinator says no, this service stands down.
+        if (!container.glassesAudio.startListening()) {
+            Log.i(TAG, "Coordinator declined the microphone; not holding the foreground")
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return START_NOT_STICKY
+        }
         return START_STICKY
     }
 
     override fun onDestroy() {
         // Whatever ends the service ends the microphone: the notification going away and capture
-        // continuing would be the dishonest combination.
-        (application as? OperatorApplication)?.container?.listen?.stop()
+        // continuing would be the dishonest combination. Through the coordinator, so a pending
+        // auto-resume after speech is revoked rather than reopening the microphone behind us.
+        (application as? OperatorApplication)?.container?.glassesAudio?.stopListening()
         super.onDestroy()
     }
 
     private fun stopListening() {
-        (application as? OperatorApplication)?.container?.listen?.stop()
+        (application as? OperatorApplication)?.container?.glassesAudio?.stopListening()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }

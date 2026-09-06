@@ -387,3 +387,26 @@ Every captured line is attributed to `UNKNOWN`, rendered "Someone". The transcri
 returns text, not diarisation, so labelling lines with a name would be inventing a capability the
 system does not have — and the brief forbids both that and building profiles of the people around
 the user. Only Operator's own replies are attributed, because those it does know it produced.
+
+## ADR-036: ElevenLabs audio streams through the backend as raw 24 kHz PCM
+
+**Status:** Accepted (Milestone 9)
+
+The Android app never receives the ElevenLabs key. The backend calls the official HTTP streaming
+endpoint with configured voice and model IDs and relays signed 16-bit little-endian mono PCM.
+HTTP streaming fits Milestone 9 because the complete model answer exists before TTS starts; the
+bidirectional WebSocket endpoint becomes useful only if later work speaks partial LLM tokens. Raw
+`pcm_24000` lets `AudioTrack` play the first received chunk without waiting for an MP3 decoder or
+a complete file. Cancellation closes the phone request, backend stream, provider channel, and
+`AudioTrack`. No audio is written to disk.
+
+## ADR-037: Glasses audio is half-duplex at the application boundary
+
+**Status:** Accepted (Milestone 10)
+
+The Ray-Ban microphone and speaker share Android's Bluetooth communication routing. Operator
+therefore pauses active listening before speech playback and resumes it only after playback ends.
+This prevents Operator from transcribing its own voice and avoids concurrent calls competing for
+`AudioManager.setCommunicationDevice`. An explicit listening stop or emergency mute cancels the
+pending resume. The policy sits above the independent hearing and speaking controllers so those
+subsystems remain separately testable and usable with the phone's built-in audio routes.

@@ -44,6 +44,18 @@ class UsageTrackerTest {
     }
 
     @Test
+    fun `tts characters accumulate with the rest of usage`() {
+        val tracker = UsageTracker(clock = at("2026-09-05T10:00:00Z"))
+        tracker.record("tts", "elevenlabs", "eleven_flash_v2_5", characters = 12, latencyMillis = 90)
+        tracker.record("tts", "elevenlabs", "eleven_flash_v2_5", characters = 8, latencyMillis = 110)
+
+        val report = tracker.report()
+        assertEquals(20L, report.allTime.characters)
+        assertEquals(20L, report.today.characters)
+        assertEquals(20L, report.byModel["eleven_flash_v2_5"]!!.characters)
+    }
+
+    @Test
     fun `yesterday's calls stay out of today but inside the month`() {
         val tracker = UsageTracker(clock = at("2026-09-04T23:59:00Z"))
         tracker.record("model", "openrouter", "v/fast", inputTokens = 10)

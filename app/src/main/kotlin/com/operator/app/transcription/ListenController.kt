@@ -52,6 +52,12 @@ data class ListenState(
     val error: String? = null,
 )
 
+interface ListeningSession {
+    val listening: Boolean
+    fun start(selection: RouteSelection)
+    fun stop()
+}
+
 /**
  * The hearing path on the phone (Milestone 8): open microphone → voice-activity detection →
  * one utterance → backend → transcript.
@@ -71,7 +77,7 @@ class ListenController(
     private val sessionId: String? = null,
     private val clock: () -> Long = System::currentTimeMillis,
     private val maxTranscripts: Int = 10,
-) {
+) : ListeningSession {
     private val _state = MutableStateFlow(ListenState())
     val state: StateFlow<ListenState> = _state.asStateFlow()
 
@@ -87,9 +93,9 @@ class ListenController(
 
     private class Utterance(val clip: PcmClip, val endedAtMillis: Long)
 
-    val listening: Boolean get() = listenJob?.isActive == true
+    override val listening: Boolean get() = listenJob?.isActive == true
 
-    fun start(selection: RouteSelection) {
+    override fun start(selection: RouteSelection) {
         if (listening) return
         if (!backend.configured) {
             _state.update { it.copy(status = ListenStatus.ERROR, error = "No backend URL configured. Set OPERATOR_BACKEND_URL in local.properties.") }
@@ -146,7 +152,7 @@ class ListenController(
     }
 
     /** Stops immediately. In-flight audio is discarded rather than uploaded after the fact. */
-    fun stop() {
+    override fun stop() {
         listenJob?.cancel()
         listenJob = null
         uploadJob?.cancel()
