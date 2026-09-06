@@ -88,9 +88,15 @@ class ListenControllerTest {
         }
     }
 
-    /** Feeds enough silence for the detector to learn the room, then one utterance and a pause. */
+    /**
+     * Feeds enough silence for the detector to learn the room, then one utterance and a pause.
+     *
+     * The calibration count is derived from the controller's own constant rather than written out.
+     * It was hard-coded at 20, and when calibration lengthened to a second these tests failed with
+     * no utterance ever produced - the gate cannot open while the room is still being learned.
+     */
     private suspend fun FakeMic.speakOnce(speechFrames: Int = 30) {
-        repeat(20) { frames.send(ShortArray(FRAME)) }
+        repeat(ListenController.CALIBRATION_FRAMES + 5) { frames.send(ShortArray(FRAME)) }
         repeat(speechFrames) { frames.send(ShortArray(FRAME) { i -> (sin(2 * PI * 300 * i / 16000.0) * 0.4 * Short.MAX_VALUE).toInt().toShort() }) }
         repeat(20) { frames.send(ShortArray(FRAME)) }
     }

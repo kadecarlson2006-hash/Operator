@@ -110,7 +110,9 @@ class ListenController(
         }
 
         listenJob = scope.launch {
-            val detector = VoiceActivityDetector()
+            // Passed explicitly rather than inherited: this is the one place that knows the frame
+            // size, so it is the only place the milliseconds-to-frames arithmetic can be checked.
+            val detector = VoiceActivityDetector(calibrationFrames = CALIBRATION_FRAMES)
             val segmenter = SpeechSegmenter(
                 sampleRateHz = SAMPLE_RATE_HZ,
                 frameSamples = FRAME_SAMPLES,
@@ -224,6 +226,16 @@ class ListenController(
         const val SAMPLE_RATE_HZ = 16_000
         const val FRAME_SAMPLES = 320 // 20 ms
         const val MIN_SPEECH_MILLIS = 350L
+
+        /**
+         * A second of room before the gate may open, in frames of [FRAME_SAMPLES] at
+         * [SAMPLE_RATE_HZ]. Long enough to span several noise events; a shorter window lets a
+         * door closing set the noise floor for the whole session (risk 33).
+         */
+        const val CALIBRATION_MILLIS = 1_000
+
+        // Int arithmetic throughout: a const val may not contain a call such as toInt().
+        const val CALIBRATION_FRAMES = CALIBRATION_MILLIS / (FRAME_SAMPLES * 1_000 / SAMPLE_RATE_HZ)
         const val MAX_SEGMENT_MILLIS = 20_000L
     }
 }
