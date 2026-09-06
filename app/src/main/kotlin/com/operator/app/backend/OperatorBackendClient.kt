@@ -15,6 +15,7 @@ import io.ktor.serialization.kotlinx.json.json
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.cancel
 import io.ktor.utils.io.readAvailable
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -185,6 +186,8 @@ class OperatorBackendClient(private val baseUrl: String?) : OperatorBackend, Ope
                 contentType(ContentType.Application.Json)
                 setBody(AskRequest(prompt, tier, sessionId, mode, wit, transcript))
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w(TAG, "Backend unreachable", e)
             throw BackendException("Backend unreachable at $base (${e.message ?: e::class.simpleName})")
@@ -196,6 +199,8 @@ class OperatorBackendClient(private val baseUrl: String?) : OperatorBackend, Ope
         }
         return try {
             response.body<AskResponse>()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             throw BackendException("Unreadable backend response: ${e.message}")
         }
@@ -214,6 +219,8 @@ class OperatorBackendClient(private val baseUrl: String?) : OperatorBackend, Ope
                 contentType(ContentType.Application.OctetStream)
                 setBody(pcm)
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w(TAG, "Backend unreachable", e)
             throw BackendException("Backend unreachable at $base (${e.message ?: e::class.simpleName})")
@@ -225,6 +232,8 @@ class OperatorBackendClient(private val baseUrl: String?) : OperatorBackend, Ope
         }
         return try {
             response.body<TranscribeResponse>()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             throw BackendException("Unreadable transcription response: ${e.message}")
         }
@@ -238,6 +247,8 @@ class OperatorBackendClient(private val baseUrl: String?) : OperatorBackend, Ope
                 contentType(ContentType.Application.Json)
                 setBody(SynthesizeRequest(text))
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w(TAG, "Speech backend unreachable", e)
             throw BackendException("Backend unreachable at $base (${e.message ?: e::class.simpleName})")
@@ -281,6 +292,8 @@ class OperatorBackendClient(private val baseUrl: String?) : OperatorBackend, Ope
                 contentType(ContentType.Application.Json)
                 setBody(DecideRequest(trigger, transcript, mode, wit, recentComments, muted, sessionId))
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w(TAG, "Backend unreachable", e)
             throw BackendException("Backend unreachable at $base (${e.message ?: e::class.simpleName})")
@@ -292,6 +305,8 @@ class OperatorBackendClient(private val baseUrl: String?) : OperatorBackend, Ope
         }
         return try {
             response.body<DecideResponse>()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             throw BackendException("Unreadable decision response: ${e.message}")
         }
