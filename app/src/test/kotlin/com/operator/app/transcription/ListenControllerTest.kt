@@ -260,9 +260,9 @@ class ListenControllerTest {
 
         assertEquals(listOf("meeting moved to Thursday"), window.entries().map { it.text })
         assertEquals(
+            "the provider gives text, not diarisation, so the speaker is not known",
             Speaker.UNKNOWN,
             window.entries().single().speaker,
-            "the provider gives text, not diarisation, so the speaker is not known",
         )
 
         controller.stop()
@@ -279,7 +279,7 @@ class ListenControllerTest {
         mic.speakOnce()
         advanceUntilIdle()
 
-        assertTrue(window.entries().isEmpty(), "silence heard as nothing is not conversation")
+        assertTrue("silence heard as nothing is not conversation", window.entries().isEmpty())
 
         controller.stop()
         mic.frames.close()
@@ -295,7 +295,7 @@ class ListenControllerTest {
         mic.speakOnce()
         advanceUntilIdle()
 
-        assertTrue(window.entries().isEmpty(), "nothing was heard, so nothing should be remembered")
+        assertTrue("nothing was heard, so nothing should be remembered", window.entries().isEmpty())
 
         controller.stop()
         mic.frames.close()
@@ -314,7 +314,7 @@ class ListenControllerTest {
 
         controller.clearTranscripts()
 
-        assertTrue(window.entries().isEmpty(), "CLEAR must mean cleared, or prompts keep seeing it")
+        assertTrue("CLEAR must mean cleared, or prompts keep seeing it", window.entries().isEmpty())
         assertTrue(controller.state.value.transcripts.isEmpty())
 
         controller.stop()
