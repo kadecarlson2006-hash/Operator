@@ -274,7 +274,26 @@ ANYTHING TO SAY?
 - Set mode to QUIET: refused **free**, with no model call.
 - Mute: COMMENT NOW refused.
 
-You can drive this without the app:
+**The backend half needs no phone at all.** `scripts\decide-drill.ps1` puts a fixed set of
+conversations to `/decide` and tabulates what came back:
+
+```powershell
+.\scripts\decide-drill.ps1
+.\scripts\decide-drill.ps1 -OutFile drill-baseline.csv
+```
+
+It runs three groups in a deliberate order. The **free** cases are refused by the local rules
+before any model call — `gate()` returns before `recordDecision()`, so they cost nothing *and* do
+not consume the decision interval, which is why they can run back to back. The **ambient** cases
+are the real test, spaced by `-GapSeconds` (21 by default) because each one that reaches the model
+blocks the next for `MIN_DECISION_INTERVAL_SECONDS`. The **invited** cases run last, since
+`DIRECT_ADDRESS` and `COMMENT_NOW` bypass the interval and budget and would otherwise disturb the
+ambient timing.
+
+Read the summary line `ambient spoke`. Save a CSV with `-OutFile` before changing a prompt or a
+threshold, so the next run is a comparison rather than an impression.
+
+Or drive a single case by hand:
 
 ```powershell
 Set-Content -Path decide.json -Encoding ascii -Value '{"trigger":"AMBIENT","transcript":["Someone: what time is the meeting"]}'
