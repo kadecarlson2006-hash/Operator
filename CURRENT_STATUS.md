@@ -4,12 +4,22 @@
 default: see risk 49.
 
 **`main` contains Milestones 0 through 13.** Milestones 1 to 3 still await verification on real
-hardware, and no live model, transcription, or TTS call has ever been made. Both gaps are listed
-below.
+hardware. The **first live model call was made on 2026-09-06** and worked; transcription and TTS
+have still never run against a real provider. Both gaps are listed below, and the running order
+for closing them is in [TESTING.md](TESTING.md).
 
 **Last updated:** 2026-09-05
 
 ## What works (verified)
+
+- **First live model call, 2026-09-06.** `POST /ai/respond` answered on
+  `deepseek/deepseek-v4-flash` (OpenRouter, routed upstream to DigitalOcean) in **2019 ms** for
+  **$0.0000688**, spending 1004 input tokens on the personality prompt. The request and success
+  wire formats inferred from `@openrouter/ai-sdk-provider` 3.0.0 are correct (risk 27); risk 28
+  closes and risk 7 has a real number. Two things to carry forward: 2 s is slow for a flash tier
+  and adds to the Milestone 13 settle delay (risk 47), and **no live call has failed yet**, so the
+  error envelope is still only SDK-derived. At the risk-48 ceiling that cost is about 1 cent per
+  hour of ambient deciding.
 
 - Milestone 13: Active Operator. `AmbientDecider` watches the rolling transcript and, once
   switched on, decides on its own after a lull rather than on a button press; Operator's own last
@@ -85,10 +95,6 @@ below.
   `OPERATOR_ELEVENLABS_VOICE_ID`, and `OPERATOR_ELEVENLABS_MODEL_ID` on the backend, then use
   SPEAK ANSWER in the app. Audio streams as raw signed 16-bit little-endian mono PCM at 24 kHz;
   the API key never enters the APK.
-- Milestone 6 end to end: no live model call has ever been made. Every provider test uses a mock
-  HTTP engine. To try it for real, put `OPENROUTER_API_KEY` and `OPERATOR_FAST_MODEL_ID` in the
-  backend `.env`, `OPERATOR_BACKEND_URL` in the app's `local.properties`, then use the Ask
-  Operator panel. Risks 27 and 28.
 - Milestone 8 end to end: no live transcription call has ever been made. Every test uses a mock
   HTTP engine or a fake provider. To try it for real, put `TRANSCRIPTION_API_KEY` and
   `OPERATOR_TRANSCRIPTION_MODEL_ID` in the backend `.env` (optionally
