@@ -1,5 +1,6 @@
 package com.operator.app.ui
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -11,6 +12,8 @@ import com.operator.app.backend.AskState
 import com.operator.app.bluetooth.BluetoothStatus
 import com.operator.app.di.OperatorContainer
 import com.operator.app.transcription.ListenState
+import com.operator.app.transcription.TranscriptionService
+import com.operator.core.transcription.TranscriptEntry
 import com.operator.core.audio.AudioLoopbackState
 import com.operator.core.audio.AudioRoute
 import com.operator.core.diagnostics.RouteEvent
@@ -42,6 +45,7 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
         val ask: AskState,
         val glasses: com.operator.core.glasses.GlassesState,
         val listen: ListenState,
+        val transcript: List<TranscriptEntry>,
     )
 
     private val audioSection = combine(
@@ -60,7 +64,8 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
         container.ask.state,
         container.glasses.state,
         container.listen.state,
-    ) { ask, glasses, listen -> AiSection(ask, glasses, listen) }
+        container.transcript.state,
+    ) { ask, glasses, listen, transcript -> AiSection(ask, glasses, listen, transcript) }
 
     val uiState: StateFlow<OperatorUiState> = combine(
         container.stateManager.state,
@@ -80,6 +85,7 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
             routeEvents = audio.events,
             ask = ai.ask,
             listen = ai.listen,
+            transcript = ai.transcript,
             glasses = ai.glasses,
             glassesActions = container.glasses.actions,
             lastEvent = event,
@@ -144,10 +150,18 @@ class OperatorViewModel(private val container: OperatorContainer) : ViewModel() 
     }
     fun clearAsk() = container.ask.clear()
 
-    // --- Listening (Milestone 8) ---
-    /** Uses the same input the audio test selected, so Bluetooth routing is exercised the same way. */
-    fun startListening() = container.listen.start(container.loopback.state.value.selection)
-    fun stopListening() = container.listen.stop()
+    // --- Listening (Milestones 8 and 11) ---
+    /**
+     * Listening runs inside a foreground service so it survives the screen going off
+     * (Milestone 11). The service starts the capture; this only asks for it, and must be called
+     * from the foreground because that is the only path Android 14+ allows.
+     */
+    fun startListening(context: Context) = TranscriptionService.start(context)
+    fun stopListening(context: Context) = TranscriptionService.stop(context)
+
+    /** Belt and braces for teardown paths that have no Context to hand. */
+    fun stopListeningNow() = container.listen.stop()
+
     fun clearTranscripts() = container.listen.clearTranscripts()
 
     // --- Glasses (Milestone 3) ---

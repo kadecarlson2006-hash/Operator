@@ -10,6 +10,13 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <!-- Milestone 3: Meta Wearables toolkit registration talks to Meta AI over the network. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Milestone 11: listening continues while the screen is off, which Android only allows from a
+         foreground service. FOREGROUND_SERVICE_MICROPHONE is required from API 34. The ongoing
+         notification is not merely a platform requirement: it is how the user can see, at a glance,
+         that Operator is listening, and stop it without opening the app. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
@@ -36,6 +43,13 @@
         <meta-data
             android:name="com.meta.wearable.mwdat.CRASH_REPORTING_OPT_OUT"
             android:value="true" />
+
+        <!-- Milestone 11: keeps capture alive when the app is not in front. Started only from a
+             user action in the foreground, which is the path Android 14+ still permits. -->
+        <service
+            android:name=".transcription.TranscriptionService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
 
         <activity
             android:name=".MainActivity"

@@ -1,7 +1,8 @@
 # CURRENT STATUS — OPERATOR
 
-**Current milestone:** 8 — Hearing: voice-activity detection and transcription (merged to
-`main`). Milestone 9 (speech out) is with Codex.
+**Current milestone:** 11 — Rolling transcription (implemented; on
+`claude/milestone-11-rolling-transcript`). Milestones 9 and 10 (speech out, glasses audio) are
+with Codex.
 
 **`main` contains Milestones 0 through 8.** Milestones 1 to 3 still await verification on real
 hardware, and no live model or transcription call has ever been made. Both gaps are listed below.
@@ -10,6 +11,13 @@ hardware, and no live model or transcription call has ever been made. Both gaps 
 
 ## What works (verified)
 
+- Milestone 11: rolling transcription. `RollingTranscript` holds the last
+  `ROLLING_CONTEXT_SECONDS` of conversation in memory, bounded by age and by entry
+  count and pruned on read as well as on write. Transcripts join it as they arrive;
+  `POST /ai/respond` accepts the window and puts it in front of the model as conversation, capped
+  server-side at 80 lines of 500 characters. `TranscriptionService` is a foreground service with
+  `FOREGROUND_SERVICE_MICROPHONE` so listening survives the screen going off, with an ongoing
+  notification that says so and stops it in one tap. FORGET WHAT WAS SAID drops the window.
 - Milestone 8: the hearing path. `VoiceActivityDetector` gates on RMS against a noise floor it
   calibrates to the room, with onset and hangover hysteresis; `SpeechSegmenter` turns frames into
   whole utterances using bounded in-memory buffers and a pre-roll, discards anything too short to
@@ -101,9 +109,12 @@ registration, and mock testing.
 - No TTS yet (Milestone 9, with Codex); that provider slot reports "not configured".
 - Transcription does not feed the model: `POST /transcribe` returns a transcript and stops there.
   Turning speech into an answer needs the decision engine and rolling context (Milestones 11-12).
-- Listening is manual: the user presses START LISTENING. Always-on ambient listening is later.
-- Ambient retrieval is not wired: retrieval runs for typed questions only, since there is no
-  rolling transcript yet (Milestone 11).
+- Listening is still started by hand: the user presses START LISTENING. It now continues in the
+  background until stopped, but Operator never decides on its own to start.
+- Operator's own replies never reach the rolling window: nothing speaks yet (Milestone 9).
+- Ambient retrieval is still not wired: retrieval runs for typed questions only. The rolling
+  transcript now exists, but nothing decides on its own when to use it — that is the decision
+  engine (Milestone 12).
 - No authentication (single default user, ADR-021).
 - Camera streaming/photo (Milestone 16), AI, TTS, transcription, rolling context, decision
   engine, BLE ring, integrations.
@@ -131,6 +142,13 @@ and the transcript appears → note the round trip → STOP LISTENING mid-senten
 transcript arrives afterwards → repeat with INPUT set to the glasses/headset (SCO) and compare
 accuracy against the phone's own microphone (risk 36) → repeat in a noisy room and confirm the
 gate does not latch open (risk 33).
+
+Milestone 11 (rolling transcription): START LISTENING → confirm the "Operator is listening"
+notification appears → lock the screen, talk, unlock, and confirm the lines are in the Rolling
+conversation panel (risk 38) → tap STOP on the notification and confirm the microphone closes →
+ask a question in the Ask Operator panel and check "Conversation sent" reports the lines →
+FORGET WHAT WAS SAID empties the panel and the next question sends 0 lines → leave it running an
+hour and note battery drain and the `GET /usage` transcription spend (risks 39-41).
 
 Milestone 3 (Meta SDK): follow the device test plan in `docs/META_GLASSES.md` (register,
 device list, session start/stop, camera permission, mock kit) and record the glasses' reported

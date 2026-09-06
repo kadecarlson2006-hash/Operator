@@ -11,6 +11,7 @@ import com.operator.app.backend.OperatorBackendClient
 import com.operator.app.audio.CommunicationLink
 import com.operator.app.audio.ContinuousMicrophone
 import com.operator.app.transcription.ListenController
+import com.operator.core.transcription.RollingTranscript
 import com.operator.app.bluetooth.BluetoothStatusMonitor
 import com.operator.app.config.BuildConfigLoader
 import com.operator.app.glasses.GlassesProviderLoader
@@ -77,17 +78,25 @@ class OperatorContainer(app: Application) {
     /** Placeholder until Milestone 12. Always NO_RESPONSE. */
     val decisionEngine: ResponseDecisionEngine = SilentDecisionEngine
 
+    /**
+     * Milestone 11: the last [OperatorConfig.rollingContextSeconds] of conversation, in memory
+     * only. One instance for the process, so the Listen panel, the foreground service, and any
+     * question asked all see the same window.
+     */
+    val transcript = RollingTranscript(windowMillis = config.rollingContextSeconds * 1_000L)
+
     /** Milestone 6: the phone's only route to the models; credentials stay on the backend. */
     val backendClient: OperatorBackend = OperatorBackendClient(config.backendUrl)
     val ask = AskOperatorController(
         backendClient,
         appScope,
         stateSupplier = { stateManager.current.let { it.mode to it.wit } },
+        transcriptSupplier = { transcript.entries().map { "${it.speaker.label}: ${it.text}" } },
     )
 
     /** Milestone 8: open microphone, gated by voice-activity detection before anything is sent. */
     private val continuousMicrophone = ContinuousMicrophone(app, audioRouteMonitor, communicationLink)
-    val listen = ListenController(continuousMicrophone, backendClient, appScope)
+    val listen = ListenController(continuousMicrophone, backendClient, appScope, transcript)
 
     /** Meta Wearables toolkit when compiled in, otherwise an honest no-op (ADR-004 / ADR-013). */
     val glasses: GlassesProvider = GlassesProviderLoader.load(app, appScope)

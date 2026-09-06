@@ -32,6 +32,8 @@ data class AskState(
     val upstreamProvider: String? = null,
     /** Memories the backend used to answer, with the reason each was chosen (Milestone 7). */
     val memoriesUsed: List<UsedMemory> = emptyList(),
+    /** How many transcript lines the backend used for this answer (Milestone 11). */
+    val transcriptLines: Int = 0,
     /** Set when the question was an explicit "remember that…" command. */
     val memoryWritten: MemoryWritten? = null,
     val retrievalMillis: Long? = null,
@@ -52,6 +54,11 @@ class AskOperatorController(
     private val clock: () -> Long = System::currentTimeMillis,
     /** Reads the live Operator mode and wit, so the backend applies the right memory scopes. */
     private val stateSupplier: () -> Pair<OperatorMode, WitLevel> = { OperatorMode.ACTIVE to WitLevel.NORMAL },
+    /**
+     * The rolling conversation to answer with (Milestone 11). Read at send time rather than held,
+     * so a question always sees the window as it is now, not as it was when the panel opened.
+     */
+    private val transcriptSupplier: () -> List<String> = { emptyList() },
 ) {
     private val _state = MutableStateFlow(AskState())
     val state: StateFlow<AskState> = _state.asStateFlow()
@@ -81,7 +88,12 @@ class AskOperatorController(
         job = scope.launch {
             try {
                 val (mode, wit) = stateSupplier()
-                val response = client.ask(current.prompt.trim(), mode = mode.name, wit = wit.name)
+                val response = client.ask(
+                    current.prompt.trim(),
+                    mode = mode.name,
+                    wit = wit.name,
+                    transcript = transcriptSupplier(),
+                )
                 val finishedAt = clock()
                 lastTimeline = lastTimeline.mark(LatencyCheckpoint.AI_FIRST_TOKEN, finishedAt)
                 _state.update {
@@ -99,6 +111,7 @@ class AskOperatorController(
                         costUsd = response.costUsd,
                         upstreamProvider = response.upstreamProvider,
                         memoriesUsed = response.memoriesUsed,
+                        transcriptLines = response.transcriptLines,
                         memoryWritten = response.memoryWritten,
                         retrievalMillis = response.retrievalMillis,
                         semanticRetrieval = response.semanticRetrieval,
