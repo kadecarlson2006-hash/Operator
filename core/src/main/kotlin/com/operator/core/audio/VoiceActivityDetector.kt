@@ -29,8 +29,15 @@ class VoiceActivityDetector(
      * Frames spent learning the room before the gate may open at all. Without this, starting up
      * inside a noisy room latches the gate open on the noise itself and Operator uploads the
      * whole room; the floor can never adapt because it only adapts while the gate is shut.
+     *
+     * The default is one second at the 20 ms frames the app uses (`ListenController.FRAME_SAMPLES`
+     * is 320 at 16 kHz), and the length is the point. This was 8 frames - 160 ms - which is
+     * shorter than a single syllable and shorter than most of the noises calibration exists to
+     * measure, so a door closing or a momentary lull decided the floor for the whole session. A
+     * second spans several noise events without being a wait anyone minds, and it is long enough
+     * that "Learning the room" is actually visible on screen, which it was not before (risk 33).
      */
-    private val calibrationFrames: Int = 8,
+    private val calibrationFrames: Int = DEFAULT_CALIBRATION_FRAMES,
 ) {
     init {
         require(activationFactor > 1f) { "activationFactor must be > 1" }
@@ -103,6 +110,13 @@ class VoiceActivityDetector(
     }
 
     companion object {
+        /**
+         * One second at 20 ms frames. Expressed in frames because the detector never sees a
+         * sample rate, so the caller owns the arithmetic; anything using a different frame size
+         * should pass its own value rather than inherit this one by accident.
+         */
+        const val DEFAULT_CALIBRATION_FRAMES = 50
+
         fun rms(frame: ShortArray): Float {
             if (frame.isEmpty()) return 0f
             var sum = 0.0

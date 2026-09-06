@@ -23,7 +23,7 @@ class SpeechSegmenterTest {
     ) = SpeechSegmenter(
         sampleRateHz = RATE,
         frameSamples = FRAME,
-        detector = VoiceActivityDetector(onsetFrames = 2, hangoverFrames = 4),
+        detector = VoiceActivityDetector(onsetFrames = 2, hangoverFrames = 4, calibrationFrames = 2),
         preRollFrames = preRollFrames,
         minSpeechMillis = minSpeechMillis,
         maxSegmentMillis = maxSegmentMillis,
