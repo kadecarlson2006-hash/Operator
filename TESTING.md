@@ -63,8 +63,12 @@ reports each provider slot as configured or not.
 With nothing running yet it will tell you to start the backend. Do that in a second terminal:
 
 ```powershell
-.\gradlew.bat :backend:run -Poperator.skipAndroid=true
+.\gradlew.bat :backend:run "-Poperator.skipAndroid=true"
 ```
+
+The quotes are not optional. Unquoted, PowerShell splits the argument at the dot and Gradle sees
+`-Poperator` and `.skipAndroid=true`, then fails with `Task '.skipAndroid=true' not found`. Bash
+and CI do not do this, which is why the same line works unquoted everywhere else in the docs.
 
 Watch the first lines of output for:
 

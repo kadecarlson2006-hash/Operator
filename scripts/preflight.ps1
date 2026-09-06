@@ -99,7 +99,9 @@ try {
 
     if (-not $health) {
         Warn "Not responding at $BaseUrl ($healthError). Start it in another window with:"
-        Write-Host "         .\gradlew.bat :backend:run -Poperator.skipAndroid=true" -ForegroundColor Gray
+        # Quoted: unquoted, PowerShell splits the argument at the dot and Gradle reads
+        # "-Poperator" plus a task named ".skipAndroid=true".
+        Write-Host '         .\gradlew.bat :backend:run "-Poperator.skipAndroid=true"' -ForegroundColor Gray
     }
 
     if ($health) {
