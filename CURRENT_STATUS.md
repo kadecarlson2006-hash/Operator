@@ -1,10 +1,10 @@
 # CURRENT STATUS — OPERATOR
 
-**Current milestone:** 11 — Rolling transcription (implemented; on
-`claude/milestone-11-rolling-transcript`). Milestones 9 and 10 (speech out, glasses audio) are
-with Codex.
+**Current milestone:** 11 — Rolling transcription (merged to `main`). Milestones 9 and 10
+(speech out, glasses audio) are with Codex on `codex/m10-glasses-audio`, green but not yet
+merged: they need the listening control path reconciled with Milestone 11's foreground service.
 
-**`main` contains Milestones 0 through 8.** Milestones 1 to 3 still await verification on real
+**`main` contains Milestones 0 through 8, plus 11.** Milestones 1 to 3 still await verification on real
 hardware, and no live model or transcription call has ever been made. Both gaps are listed below.
 
 **Last updated:** 2026-09-05
