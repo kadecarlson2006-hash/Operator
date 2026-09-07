@@ -244,8 +244,12 @@ file was read; `No .env found` means the keys are not loaded no matter what the 
 ## Rules that do not bend
 
 - **Never commit a key.** `.env` is ignored; **`.env.example` is tracked** and has had real keys
-  pasted into it once already. If it happens: `Copy-Item .env.example .env -Force` then
-  `git checkout -- .env.example`, and check whether it was committed.
+  pasted into it twice now - the names differ by eight characters and editors autocomplete to the
+  wrong one. This is now enforced rather than remembered: `scripts/check-secrets.sh` fails CI on
+  any credential in a tracked file, and runs first so it cannot be masked by a later failure.
+  **Enable the local hook once per clone** so it is caught before the commit rather than after
+  the push: `git config core.hooksPath .githooks`. If it does happen:
+  `Copy-Item .env.example .env -Force` then `git checkout -- .env.example`.
 - **No raw audio to disk, ever.** Rolling in-memory buffers only. `.pcm` and `.wav` are
   git-ignored for this reason. Raw audio logging off by default; transcripts off or minimal.
 - **Never fabricate a result.** If a call was not made, say so. An UNKNOWN TO VERIFY entry is a

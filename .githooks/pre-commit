@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+# Blocks a commit that would put a credential in a tracked file.
+#
+# Enable once per clone:   git config core.hooksPath .githooks
+#
+# Hooks live in .git/hooks, which git does not track, so a hook cannot be distributed by
+# committing it. Pointing core.hooksPath at a tracked directory is what makes this shareable -
+# and it is why CI runs the same script: a hook nobody enabled protects nobody.
+exec "$(git rev-parse --show-toplevel)/scripts/check-secrets.sh"

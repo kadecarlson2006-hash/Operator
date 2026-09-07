@@ -25,6 +25,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # First, and before anything expensive: a credential in a tracked file is the one failure
+      # that cannot be undone by fixing the next commit.
+      - name: No credentials in tracked files
+        run: ./scripts/check-secrets.sh
+
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
