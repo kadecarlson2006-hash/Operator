@@ -145,8 +145,10 @@ class ModelDecisionEngine(
     private fun userContentFor(request: DecisionRequest): String = buildString {
         appendLine("Trigger: ${request.trigger.name}")
         when (request.trigger) {
-            DecisionTrigger.COMMENT_NOW -> appendLine("The user pressed COMMENT NOW. They want to hear from you if you have anything worth saying.")
-            DecisionTrigger.DIRECT_ADDRESS -> appendLine("Operator was addressed directly. Answer.")
+            // "if you have anything worth saying" read as permission to decline, and the model
+            // took it: a live session got silence on a plain question it could certainly answer.
+            DecisionTrigger.COMMENT_NOW -> appendLine("The user pressed COMMENT NOW. They have asked to hear from you. Answer them unless you genuinely do not know or it would be harmful.")
+            DecisionTrigger.DIRECT_ADDRESS -> appendLine("Operator was addressed directly. Answer the question.")
             DecisionTrigger.AMBIENT -> appendLine("Nobody asked. Say nothing unless it clearly earns its place.")
         }
         appendLine()
