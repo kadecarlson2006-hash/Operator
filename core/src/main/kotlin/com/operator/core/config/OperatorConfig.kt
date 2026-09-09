@@ -42,6 +42,13 @@ data class OperatorConfig(
     val zeroDataRetention: Boolean = false,
     /** "latency", "throughput" or "price". Null lets OpenRouter choose. */
     val providerSort: String? = null,
+    /**
+     * Overrides the OpenRouter endpoint. Empty uses the real one. Mirrors
+     * `OPERATOR_TRANSCRIPTION_BASE_URL`, and exists for the same reasons: pointing at a
+     * self-hosted proxy, and exercising the whole request path against a local server without a
+     * live key or a live bill.
+     */
+    val openRouterBaseUrl: String? = null,
 
     // Hearing (Milestone 8). The base URL is configurable because the OpenAI-compatible
     // transcription shape is implemented by several vendors and by self-hosted Whisper servers.
@@ -106,6 +113,7 @@ data class OperatorConfig(
                 zeroDataRetention = str(Keys.ZERO_DATA_RETENTION)?.toBoolean() ?: defaults.zeroDataRetention,
                 providerSort = str(Keys.PROVIDER_SORT)?.lowercase()
                     ?.takeIf { it in setOf("latency", "throughput", "price") },
+                openRouterBaseUrl = str(Keys.OPENROUTER_BASE_URL),
                 transcriptionProvider = str(Keys.TRANSCRIPTION_PROVIDER),
                 transcriptionModelId = str(Keys.TRANSCRIPTION_MODEL_ID),
                 transcriptionBaseUrl = str(Keys.TRANSCRIPTION_BASE_URL),
@@ -137,6 +145,7 @@ data class OperatorConfig(
         const val WEB_SEARCH_MAX_RESULTS = "OPERATOR_WEB_SEARCH_MAX_RESULTS"
         const val ZERO_DATA_RETENTION = "OPERATOR_ZERO_DATA_RETENTION"
         const val PROVIDER_SORT = "OPERATOR_PROVIDER_SORT"
+        const val OPENROUTER_BASE_URL = "OPENROUTER_BASE_URL"
         const val TRANSCRIPTION_PROVIDER = "OPERATOR_TRANSCRIPTION_PROVIDER"
         const val TRANSCRIPTION_MODEL_ID = "OPERATOR_TRANSCRIPTION_MODEL_ID"
         const val TRANSCRIPTION_BASE_URL = "OPERATOR_TRANSCRIPTION_BASE_URL"

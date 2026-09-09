@@ -25,7 +25,12 @@ import kotlinx.serialization.Serializable
 class ProviderRegistry(config: BackendConfig) {
     /** Real OpenRouter client once a key is configured, otherwise a provider that fails loudly. */
     val ai: AIProvider = if (config.openRouterConfigured) {
-        OpenRouterProvider(apiKey = config.openRouterApiKey!!, appTitle = "Operator").apply {
+        OpenRouterProvider(
+            apiKey = config.openRouterApiKey!!,
+            appTitle = "Operator",
+            baseUrl = config.operator.openRouterBaseUrl?.takeIf { it.isNotBlank() }
+                ?: OpenRouterProvider.DEFAULT_BASE_URL,
+        ).apply {
             // Routing preferences apply to every call: they are about where a request is allowed
             // to go, not what it asks for (ADR-053). Web search is set per call instead - the
             // answer path may want it, the decision path runs on every lull and must not.
