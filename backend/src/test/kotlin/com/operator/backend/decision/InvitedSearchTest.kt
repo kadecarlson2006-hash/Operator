@@ -113,6 +113,40 @@ class InvitedSearchTest {
     }
 
     @Test
+    fun `an old word in the window does not buy a search for a new question`(): Unit = runBlocking {
+        // The gate used to judge the whole rolling window, so anything anyone had said in the last
+        // few minutes could switch search on. "still" and "now" are common enough that this was
+        // close to searching on everything: seconds of wait and four times the cost, to look up a
+        // question about the meaning of a word.
+        val sent = mutableListOf<String>()
+        engineWith(sent).decide(
+            spoken(
+                """
+                Someone: is the shop still open right now
+                Someone: I think so
+                Someone: operator what does ephemeral mean
+                """.trimIndent(),
+            ),
+        )
+        assertFalse(searchedIn(sent.single()), "only the question decides, not the conversation around it")
+    }
+
+    @Test
+    fun `a current question searches even after settled small talk`(): Unit = runBlocking {
+        val sent = mutableListOf<String>()
+        engineWith(sent).decide(
+            spoken(
+                """
+                Someone: how many legs does a spider have
+                Someone: eight
+                Someone: operator what's the weather in Salina today
+                """.trimIndent(),
+            ),
+        )
+        assertTrue(searchedIn(sent.single()), "the newest line is the question, and it needs looking up")
+    }
+
+    @Test
     fun `an ambient moment never searches, however current it sounds`(): Unit = runBlocking {
         // The cost argument for ADR-052: this path runs on every lull, dozens of times an hour,
         // usually to conclude nothing needs saying.

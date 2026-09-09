@@ -61,4 +61,25 @@ class NeedsCurrentInformationTest {
     fun `an empty prompt does not trigger a search`() {
         assertFalse(NeedsCurrentInformation.judge(""))
     }
+
+    @Test
+    fun `a word that merely contains a trigger word does not count`() {
+        // Substring matching made "know" contain "now", so "I don't know" searched the web. These
+        // are the everyday words that were quietly costing four times the price and seconds of wait.
+        assertFalse(NeedsCurrentInformation.judge("I don't know"))
+        assertFalse(NeedsCurrentInformation.judge("it is snowing outside"))
+        assertFalse(NeedsCurrentInformation.judge("I am grateful for that"))
+        assertFalse(NeedsCurrentInformation.judge("she is recording the meeting"))
+        assertFalse(NeedsCurrentInformation.judge("the distillery tour was good"))
+    }
+
+    @Test
+    fun `both sentences from the brief search`() {
+        assertTrue(NeedsCurrentInformation.judge("what's the weather in Salina today"))
+        assertTrue(
+            NeedsCurrentInformation.judge(
+                "did you see the rams aaron donald isn't traveling to AUS with the rest of the team",
+            ),
+        )
+    }
 }

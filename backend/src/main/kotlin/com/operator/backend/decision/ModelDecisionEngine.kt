@@ -102,8 +102,15 @@ class ModelDecisionEngine(
         // they run on every lull, and the question there is whether to speak, not what is true.
         //
         // Decided before retrieval, because it also decides whether retrieval is worth doing.
+        //
+        // Judged on the question itself rather than the whole window, for the same reason the
+        // question is what goes in the user message: that is the text search builds its query
+        // from. Judging the window let a "now" or a "still" from four lines back switch search on
+        // for a question that did not need it - seconds of wait and four times the cost, spent
+        // looking up something nobody asked.
         val invited = request.trigger != DecisionTrigger.AMBIENT
-        val searched = invited && webSearch != null && NeedsCurrentInformation.judge(request.recentTranscript)
+        val searched = invited && webSearch != null &&
+            NeedsCurrentInformation.judge(question(request.recentTranscript).orEmpty())
         (provider as? OpenRouterProvider)?.webSearch = if (searched) webSearch else null
 
         val retrievalStartedAt = clock()
@@ -190,17 +197,25 @@ class ModelDecisionEngine(
         // Two reasons. The model reads the last user turn as the request, and web search builds
         // its query from it - a user message reading only "Trigger: DIRECT_ADDRESS ... Decide now"
         // gives the search nothing to look for, so search would be enabled and useless.
-        latestLine(request.recentTranscript)?.let { line ->
+        question(request.recentTranscript)?.let { asked ->
             appendLine()
             appendLine(if (request.trigger == DecisionTrigger.AMBIENT) "Last thing said:" else "What was said to you:")
-            appendLine(WakeWord.stripAddress(line))
+            appendLine(asked)
         }
 
         appendLine()
         appendLine("Decide now. Reply with the JSON object only.")
     }
 
-    /** The most recent line of the rolling window, without its speaker prefix. */
+    /**
+     * What was actually asked: the most recent line of the window, without its speaker prefix and
+     * without the wake word. One definition, used both to decide whether to search and as the user
+     * message - so the gate can never switch search on for text the search will not see.
+     */
+    private fun question(transcript: String): String? =
+        latestLine(transcript)?.let { WakeWord.stripAddress(it) }?.takeIf { it.isNotBlank() }
+
+    /** The most recent line of the rolling window, speaker prefix and all. */
     private fun latestLine(transcript: String): String? =
         transcript.lineSequence().map { it.trim() }.lastOrNull { it.isNotEmpty() }
 
