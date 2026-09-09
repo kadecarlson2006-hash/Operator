@@ -686,3 +686,46 @@ between words of similar length, so "operate" and "operation" are not caught.
 The asymmetry justifies the looseness: a false positive means Operator answers something nobody
 quite asked, while a false negative means it ignores you when you used its name. The second is
 worse, and it is the one people notice.
+
+## ADR-052: Live search on the answer path, never on the decision path
+
+**Status:** Accepted (2026-09-09)
+
+`POST /ai/respond` may use OpenRouter's built-in web search. `POST /decide` may not.
+
+A model answers from a snapshot of its training data and has no idea how stale that snapshot is.
+Asked who wears 95 for the Rams, it gave a name that was plausible and out of date — and nothing in
+a prompt fixes that, because the model cannot tell a fact that has changed from one that has not.
+Search is the only thing that does.
+
+The split is about what each path costs. The answer path runs when somebody asks a question:
+seconds of latency and a search fee are acceptable there. The decision path runs on every lull in
+conversation, dozens of times an hour, mostly to conclude that nothing needs saying — searching
+there would multiply both the bill and the delay for no benefit, since the question is whether to
+speak, not what the facts are.
+
+Off by default. Most questions do not need it, and a feature that quietly bills per call should be
+switched on deliberately.
+
+## ADR-053: Route to endpoints that do not retain prompts
+
+**Status:** Accepted (2026-09-09)
+
+`OPERATOR_ZERO_DATA_RETENTION` restricts routing to endpoints that do not retain prompts, and
+refuses providers that may store data.
+
+This is the setting that matches what Operator actually sends. Transcripts leaving this device
+contain other people — a baby, a partner, a colleague, whoever was in the room — none of whom
+agreed to anything. The brief forbids silently building permanent records of the people around the
+user, and a provider that retains prompts builds exactly that, on somebody else's disk, outside
+any control this project has.
+
+It is off by default, which is a compromise rather than a preference: enabling it restricts which
+providers may serve a given model, and could make a configured model unavailable with a failure
+that looks unrelated. The documentation recommends it in the strongest terms available short of
+forcing it, and `.env.example` says why.
+
+`OPERATOR_PROVIDER_SORT=latency` is separate and unrelated to privacy — it asks OpenRouter to
+prefer the quickest endpoint for a model. Latency is the recurring finding in every live
+measurement, and this is the cheapest thing that addresses it. A request carrying `sort` alone
+makes no privacy claim, and a test pins that so the two are never conflated.

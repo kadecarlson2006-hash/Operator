@@ -27,6 +27,42 @@ data class ChatMessage(val role: String, val content: String) {
     }
 }
 
+/**
+ * OpenRouter's built-in web search (ADR-052).
+ *
+ * Shape taken from `@openrouter/ai-sdk-provider`, like the rest of this file - the hosted
+ * reference is unreachable from the build sandbox, so this is the same substitution recorded in
+ * risk 27, and carries the same caveat (risk 62).
+ */
+@Serializable
+data class WebSearchOptions(
+    @SerialName("max_results") val maxResults: Int? = null,
+    @SerialName("search_prompt") val searchPrompt: String? = null,
+    /** "native" uses the provider's own search, "exa" uses Exa. Null lets OpenRouter choose. */
+    val engine: String? = null,
+)
+
+/**
+ * Provider routing preferences (ADR-053).
+ *
+ * The privacy fields are the reason this exists. Operator sends transcripts of conversations that
+ * include people who never agreed to any of this - a baby, a partner, whoever is in the room - and
+ * routing them to an endpoint that retains prompts would put exactly the permanent record of other
+ * people the brief forbids on somebody else's disk. `zdr` restricts routing to endpoints that do
+ * not retain prompts; `dataCollection = "deny"` refuses providers that may store data.
+ *
+ * `sort = "latency"` is the other reason: slow responses are the recurring finding in every live
+ * measurement, and OpenRouter can prefer the quickest endpoint for the same model.
+ */
+@Serializable
+data class ProviderPreferences(
+    @SerialName("data_collection") val dataCollection: String? = null,
+    val zdr: Boolean? = null,
+    /** "price", "throughput" or "latency". */
+    val sort: String? = null,
+    @SerialName("allow_fallbacks") val allowFallbacks: Boolean? = null,
+)
+
 @Serializable
 data class ChatCompletionRequest(
     val model: String,
@@ -36,6 +72,9 @@ data class ChatCompletionRequest(
     @SerialName("max_tokens") val maxTokens: Int? = null,
     val temperature: Double? = null,
     val stream: Boolean = false,
+    /** Absent unless the caller asked for it: search costs money and time on every call. */
+    @SerialName("web_search_options") val webSearchOptions: WebSearchOptions? = null,
+    val provider: ProviderPreferences? = null,
 )
 
 @Serializable

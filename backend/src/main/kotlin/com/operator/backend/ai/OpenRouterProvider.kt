@@ -56,6 +56,8 @@ class OpenRouterProvider(
             models = fallbacks.takeIf { it.isNotEmpty() },
             maxTokens = request.maxOutputTokens,
             temperature = temperature,
+            webSearchOptions = webSearch,
+            provider = providerPreferences,
         )
         val startedAt = System.nanoTime()
         val response: HttpResponse = try {
@@ -104,6 +106,17 @@ class OpenRouterProvider(
 
     /** Fallback model IDs sent as OpenRouter's `models` array. Set per request by the caller. */
     @Volatile var fallbacks: List<String> = emptyList()
+
+    /**
+     * Web search, when the caller wants live information (ADR-052).
+     *
+     * Null by default and set per call rather than globally: search is billed and slow, so the
+     * answer path may want it while the decision path - which runs on every lull - must not.
+     */
+    @Volatile var webSearch: WebSearchOptions? = null
+
+    /** Routing preferences: privacy first, then speed (ADR-053). Null sends nothing. */
+    @Volatile var providerPreferences: ProviderPreferences? = null
 
     private fun describeError(status: HttpStatusCode, body: String): String {
         val envelope = runCatching { json.decodeFromString(ErrorEnvelope.serializer(), body) }.getOrNull()?.error

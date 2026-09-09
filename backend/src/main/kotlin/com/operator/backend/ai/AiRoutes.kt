@@ -86,6 +86,8 @@ fun Route.aiRoutes(
     defaultPromptVersion: String,
     retrieval: MemoryRetrievalEngine? = null,
     writeEngine: MemoryWriteEngine? = null,
+    /** Live web search for answers (ADR-052). Null leaves the provider's setting alone. */
+    webSearch: WebSearchOptions? = null,
 ) {
     val log = LoggerFactory.getLogger("operator-ai")
 
@@ -178,6 +180,11 @@ fun Route.aiRoutes(
         if (systemPrompt == null) log.warn("Prompt version {} unavailable; sending without a system prompt", promptVersion)
 
         (provider as? OpenRouterProvider)?.fallbacks = decision.fallbacks
+        // Live search on the answer path only. A model answers "who wears 95 for the Rams" from a
+        // snapshot of its training data and has no idea how stale that is; search is the only
+        // thing that fixes it (ADR-052). Deliberately not applied to /decide, which runs on every
+        // lull - searching there would multiply both the latency and the bill.
+        (provider as? OpenRouterProvider)?.webSearch = webSearch
 
         val startedAt = System.nanoTime()
         val result = try {

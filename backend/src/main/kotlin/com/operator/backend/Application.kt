@@ -9,6 +9,7 @@ import com.operator.backend.ai.EmbeddingProvider
 import com.operator.backend.ai.ModelRouter
 import com.operator.backend.ai.NoEmbeddingProvider
 import com.operator.backend.ai.OpenRouterEmbeddingProvider
+import com.operator.backend.ai.WebSearchOptions
 import com.operator.backend.ai.PromptLibrary
 import com.operator.backend.ai.aiRoutes
 import com.operator.backend.health.healthRoutes
@@ -96,6 +97,13 @@ class BackendDependencies(
     val vision: VisionProvider = NoVisionProvider,
 ) {
     val modelRouter = ModelRouter(config.operator)
+
+    /**
+     * Live web search for the answer path (ADR-052). Null when disabled, which is the default:
+     * search is billed per call and adds seconds. Never applied to the decision path.
+     */
+    val webSearch: WebSearchOptions? =
+        if (config.operator.webSearchEnabled) WebSearchOptions(maxResults = config.operator.webSearchMaxResults) else null
 
     /**
      * The anti-annoyance rules (Milestone 12). One instance for the process, because the interval
@@ -236,7 +244,7 @@ fun Application.operatorModule(deps: BackendDependencies) {
         get("/") { call.respond(mapOf("service" to "operator-backend", "version" to BACKEND_VERSION, "health" to "/health")) }
         healthRoutes(deps.health)
         memoryRoutes(deps.memory, deps.config.demoSeedEnabled, deps.embeddings)
-        aiRoutes(deps.ai, deps.modelRouter, deps.prompts, deps.usage, deps.config.promptVersion, deps.retrieval, deps.writeEngine)
+        aiRoutes(deps.ai, deps.modelRouter, deps.prompts, deps.usage, deps.config.promptVersion, deps.retrieval, deps.writeEngine, deps.webSearch)
         decisionRoutes(deps.decisionEngine, deps.usage)
         feedbackRoutes(deps.feedback, deps.conversationPolicy, deps::noteFeedback)
         visionRoutes(deps.vision, deps.usage)

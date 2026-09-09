@@ -27,6 +27,21 @@ data class OperatorConfig(
     val visionModelId: String? = null,
     /** Embedding model for semantic memory retrieval (Milestone 7). */
     val embeddingModelId: String? = null,
+    /**
+     * Whether answers may search the web for current information (ADR-052). Off by default:
+     * search is billed per call and adds latency, and most questions do not need it.
+     */
+    val webSearchEnabled: Boolean = false,
+    /** How many results to pull in. More context, more cost. */
+    val webSearchMaxResults: Int = 3,
+    /**
+     * Route only to endpoints that do not retain prompts (ADR-053). Off by default because it
+     * restricts which providers can serve a model and may make one unavailable - but for a device
+     * that transcribes rooms containing other people, it is the setting to want.
+     */
+    val zeroDataRetention: Boolean = false,
+    /** "latency", "throughput" or "price". Null lets OpenRouter choose. */
+    val providerSort: String? = null,
 
     // Hearing (Milestone 8). The base URL is configurable because the OpenAI-compatible
     // transcription shape is implemented by several vendors and by self-hosted Whisper servers.
@@ -85,6 +100,12 @@ data class OperatorConfig(
                 decisionModelId = str(Keys.DECISION_MODEL_ID),
                 visionModelId = str(Keys.VISION_MODEL_ID),
                 embeddingModelId = str(Keys.EMBEDDING_MODEL_ID),
+                webSearchEnabled = str(Keys.WEB_SEARCH_ENABLED)?.toBoolean() ?: defaults.webSearchEnabled,
+                webSearchMaxResults = str(Keys.WEB_SEARCH_MAX_RESULTS)?.toIntOrNull()?.coerceIn(1, 10)
+                    ?: defaults.webSearchMaxResults,
+                zeroDataRetention = str(Keys.ZERO_DATA_RETENTION)?.toBoolean() ?: defaults.zeroDataRetention,
+                providerSort = str(Keys.PROVIDER_SORT)?.lowercase()
+                    ?.takeIf { it in setOf("latency", "throughput", "price") },
                 transcriptionProvider = str(Keys.TRANSCRIPTION_PROVIDER),
                 transcriptionModelId = str(Keys.TRANSCRIPTION_MODEL_ID),
                 transcriptionBaseUrl = str(Keys.TRANSCRIPTION_BASE_URL),
@@ -112,6 +133,10 @@ data class OperatorConfig(
         const val DECISION_MODEL_ID = "OPERATOR_DECISION_MODEL_ID"
         const val VISION_MODEL_ID = "OPERATOR_VISION_MODEL_ID"
         const val EMBEDDING_MODEL_ID = "OPERATOR_EMBEDDING_MODEL_ID"
+        const val WEB_SEARCH_ENABLED = "OPERATOR_WEB_SEARCH"
+        const val WEB_SEARCH_MAX_RESULTS = "OPERATOR_WEB_SEARCH_MAX_RESULTS"
+        const val ZERO_DATA_RETENTION = "OPERATOR_ZERO_DATA_RETENTION"
+        const val PROVIDER_SORT = "OPERATOR_PROVIDER_SORT"
         const val TRANSCRIPTION_PROVIDER = "OPERATOR_TRANSCRIPTION_PROVIDER"
         const val TRANSCRIPTION_MODEL_ID = "OPERATOR_TRANSCRIPTION_MODEL_ID"
         const val TRANSCRIPTION_BASE_URL = "OPERATOR_TRANSCRIPTION_BASE_URL"

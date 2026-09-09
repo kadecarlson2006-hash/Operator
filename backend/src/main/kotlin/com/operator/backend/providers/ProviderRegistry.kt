@@ -1,6 +1,7 @@
 package com.operator.backend.providers
 
 import com.operator.backend.ai.OpenRouterProvider
+import com.operator.backend.ai.ProviderPreferences
 import com.operator.backend.config.BackendConfig
 import com.operator.backend.tts.ElevenLabsTTSProvider
 import com.operator.backend.transcription.OpenAiCompatibleTranscriptionProvider
@@ -24,7 +25,17 @@ import kotlinx.serialization.Serializable
 class ProviderRegistry(config: BackendConfig) {
     /** Real OpenRouter client once a key is configured, otherwise a provider that fails loudly. */
     val ai: AIProvider = if (config.openRouterConfigured) {
-        OpenRouterProvider(apiKey = config.openRouterApiKey!!, appTitle = "Operator")
+        OpenRouterProvider(apiKey = config.openRouterApiKey!!, appTitle = "Operator").apply {
+            // Routing preferences apply to every call: they are about where a request is allowed
+            // to go, not what it asks for (ADR-053). Web search is set per call instead - the
+            // answer path may want it, the decision path runs on every lull and must not.
+            val prefs = ProviderPreferences(
+                dataCollection = if (config.operator.zeroDataRetention) "deny" else null,
+                zdr = if (config.operator.zeroDataRetention) true else null,
+                sort = config.operator.providerSort,
+            )
+            providerPreferences = prefs.takeIf { it.zdr != null || it.sort != null }
+        }
     } else {
         NotConfiguredAIProvider
     }
