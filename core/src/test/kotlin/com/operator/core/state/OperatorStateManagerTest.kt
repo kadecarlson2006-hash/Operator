@@ -37,7 +37,9 @@ class OperatorStateManagerTest {
         assertTrue(m.current.mayVolunteer)
         m.standby()
         assertEquals(OperatorStatus.STANDING_BY, m.current.status)
-        assertFalse(m.current.mayVolunteer)
+        // STANDBY follows the conversation and may occasionally offer something (ADR-050). QUIET
+        // is the mode that stays silent unless asked, and the test below covers it.
+        assertTrue(m.current.mayVolunteer)
     }
 
     @Test

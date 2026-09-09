@@ -101,7 +101,7 @@ fun Route.aiRoutes(
                     call.respond(HttpStatusCode.BadRequest, mapOf("error" to "mode must be one of ${OperatorMode.entries.joinToString { it.name }}"))
                     return@post
                 }
-        } ?: OperatorMode.ACTIVE
+        } ?: DEFAULT_MODE
         val wit = request.wit?.let { raw ->
             WitLevel.entries.firstOrNull { it.name.equals(raw, ignoreCase = true) }
                 ?: run {
@@ -252,3 +252,8 @@ fun Route.aiRoutes(
  */
 const val MAX_TRANSCRIPT_LINES = 80
 const val MAX_TRANSCRIPT_LINE_CHARS = 500
+
+// STANDBY, not ACTIVE. Since ADR-050 gave modes their own restraint, ACTIVE means
+// "speaks readily" - which is not what an unspecified mode should get. This also matches
+// the app's own OPERATOR_DEFAULT_MODE.
+private val DEFAULT_MODE = OperatorMode.STANDBY

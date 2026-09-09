@@ -28,7 +28,9 @@ class ConversationPolicyTest {
 
     private fun ambient(
         transcript: String = "someone is talking about the deadline",
-        mode: OperatorMode = OperatorMode.ACTIVE,
+        // STANDBY, not ACTIVE: these tests are about the configured intervals and caps
+        // themselves, and STANDBY is the mode that applies no adjustment to them (ADR-050).
+        mode: OperatorMode = OperatorMode.STANDBY,
         muted: Boolean = false,
         recentComments: List<String> = emptyList(),
     ) = DecisionRequest(
@@ -83,7 +85,9 @@ class ConversationPolicyTest {
     @Test
     fun `modes that never volunteer refuse ambient but answer when addressed`() {
         val (p, _) = policy()
-        for (mode in listOf(OperatorMode.STANDBY, OperatorMode.QUIET)) {
+        // STANDBY volunteers occasionally now (ADR-050), so QUIET and OFF are the modes that
+        // never do. QUIET listens and answers when asked; OFF does not participate at all.
+        for (mode in listOf(OperatorMode.QUIET)) {
             assertEquals("MODE_DOES_NOT_VOLUNTEER", p.gate(ambient(mode = mode)), "$mode should not volunteer")
             assertNull(
                 p.gate(DecisionRequest(DecisionTrigger.DIRECT_ADDRESS, "what time is it", mode = mode)),

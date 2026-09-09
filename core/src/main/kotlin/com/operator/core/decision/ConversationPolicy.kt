@@ -99,18 +99,22 @@ class ConversationPolicy(
             if (!request.mode.allowsUnsolicitedComments) return "MODE_DOES_NOT_VOLUNTEER"
             if (request.recentTranscript.isBlank()) return "NOTHING_HEARD"
 
+            // Scaled by the mode: a talkative posture shortens the intervals and widens the
+            // caps, a reserved one leaves them as configured (ADR-050). Every mode still passes
+            // through the same gates - none of them is exempt, only more or less patient.
+            val mode = request.mode
             val now = clock()
             prune(now)
             spokenAt.lastOrNull()?.let { last ->
-                if (now - last < minCommentIntervalSeconds * 1_000L) return "RECENTLY_SPOKE"
+                if (now - last < scaledMillis(minCommentIntervalSeconds, mode.intervalFactor)) return "RECENTLY_SPOKE"
             }
-            if (spokenAt.size >= maxCommentsPer5Minutes) return "RATE_LIMITED"
+            if (spokenAt.size >= scaledCount(maxCommentsPer5Minutes, mode.budgetFactor)) return "RATE_LIMITED"
 
             // The two limits that still hold when Operator says nothing (Milestone 13).
             decidedAt.lastOrNull()?.let { last ->
-                if (now - last < minDecisionIntervalSeconds * 1_000L) return "DECIDED_RECENTLY"
+                if (now - last < scaledMillis(minDecisionIntervalSeconds, mode.intervalFactor)) return "DECIDED_RECENTLY"
             }
-            if (decidedAt.size >= maxDecisionsPer5Minutes) return "DECISION_BUDGET"
+            if (decidedAt.size >= scaledCount(maxDecisionsPer5Minutes, mode.budgetFactor)) return "DECISION_BUDGET"
         }
         return null
     }
@@ -135,9 +139,12 @@ class ConversationPolicy(
             // uninvited path alone: the user who just pressed a button is asking, and answering
             // them worse because an unrelated ambient remark annoyed them earlier would be
             // punishing the wrong request.
+            // The mode may lower the bar; feedback may only raise it. A complaint therefore still
+            // tightens even the most forward mode, which is the property ADR-045 exists to keep.
             val penalty = feedbackPenalty()
-            if (decision.confidence < minConfidence + penalty) return decision.suppressed("LOW_CONFIDENCE")
-            if (decision.relevance < minRelevance + penalty) return decision.suppressed("LOW_RELEVANCE")
+            val adjust = request.mode.floorAdjustment + penalty
+            if (decision.confidence < (minConfidence + adjust).coerceAtLeast(MIN_FLOOR)) return decision.suppressed("LOW_CONFIDENCE")
+            if (decision.relevance < (minRelevance + adjust).coerceAtLeast(MIN_FLOOR)) return decision.suppressed("LOW_RELEVANCE")
         }
 
         if (sentenceCount(response) > maxSentences) return decision.suppressed("TOO_LONG")
@@ -194,6 +201,19 @@ class ConversationPolicy(
          * no weight anyway.
          */
         const val MAX_FEEDBACK_REMEMBERED = 50
+
+        /**
+         * However forward the mode, a comment the model itself is barely confident in is not worth
+         * hearing. No mode may drop the floors below this.
+         */
+        const val MIN_FLOOR = 0.2f
+
+        /** Scaled intervals never reach zero: some gap between comments is always right. */
+        fun scaledMillis(seconds: Int, factor: Float): Long =
+            (seconds * 1_000L * factor).toLong().coerceAtLeast(if (seconds > 0) 1_000L else 0L)
+
+        fun scaledCount(count: Int, factor: Float): Int =
+            (count * factor).toInt().coerceAtLeast(if (count > 0) 1 else 0)
 
         /** Terminal punctuation, ignoring a trailing one so "Yes." counts as one sentence. */
         fun sentenceCount(text: String): Int =

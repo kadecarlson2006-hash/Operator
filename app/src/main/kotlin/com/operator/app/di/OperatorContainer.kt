@@ -148,7 +148,7 @@ class OperatorContainer(app: Application) {
     val ambient = AmbientDecider(
         transcript = transcript,
         scope = appScope,
-        decide = { decision.request(trigger = "AMBIENT") },
+        decide = { trigger -> decision.request(trigger = trigger) },
         audioAllowed = { stateManager.current.let { !it.muted && it.isProcessing } },
     )
 

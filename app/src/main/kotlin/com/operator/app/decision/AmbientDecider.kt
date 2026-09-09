@@ -2,6 +2,7 @@ package com.operator.app.decision
 
 import com.operator.core.transcription.RollingTranscript
 import com.operator.core.transcription.Speaker
+import com.operator.core.wake.WakeWord
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,7 +39,8 @@ class AmbientDecider(
     private val transcript: RollingTranscript,
     private val scope: CoroutineScope,
     /** Asks the decision stage. Returns false when it declined to start. */
-    private val decide: () -> Boolean,
+    /** Takes the trigger, because a line that names Operator is a direct address (ADR-051). */
+    private val decide: (String) -> Boolean,
     /** Whether Operator is in a state where deciding makes sense at all. */
     private val audioAllowed: () -> Boolean,
     private val settleMillis: Long = DEFAULT_SETTLE_MILLIS,
@@ -74,7 +76,11 @@ class AmbientDecider(
                 delay(settleMillis)
                 _state.update { it.copy(waiting = false) }
                 if (!audioAllowed()) return@collectLatest
-                if (decide()) _state.update { it.copy(considered = it.considered + 1) }
+                // Being named is being asked. The same words judged as AMBIENT face the strict
+                // uninvited floors and are usually refused, which is why "Operator, what time is
+                // it" produced silence before this existed.
+                val trigger = WakeWord.triggerFor(lines.last().text).name
+                if (decide(trigger)) _state.update { it.copy(considered = it.considered + 1) }
             }
         }
     }

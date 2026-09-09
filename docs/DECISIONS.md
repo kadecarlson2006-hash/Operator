@@ -630,3 +630,59 @@ The vision wire format uses its own message types rather than widening `ChatMess
 either a string or an array of parts. The text format is verified against live calls and works
 (risk 27); putting the one proven path at risk for a feature that has never run would be a poor
 trade, and two types cost only a little duplication.
+
+## ADR-050: Modes carry their own restraint
+
+**Status:** Accepted (2026-09-09)
+
+Each mode now sets its own adjustment to the confidence and relevance floors, and its own factor on
+the comment interval, the decision interval and the five-minute caps. STANDBY applies none of them
+and is the baseline.
+
+Before this, every mode that allowed volunteering behaved identically. ACTIVE, WORK, SOCIAL and
+CHAOS differed only in prompt personality; all the frequency lived in fixed thresholds. The mode
+selector looked like it controlled how much Operator talked, and it did not — which is a worse
+kind of wrong than a missing feature, because the control appears to work.
+
+The meanings also move. STANDBY becomes "follows the conversation and may occasionally offer
+something", which is what ACTIVE used to be, and ACTIVE becomes actively participating: floors
+lowered, intervals shortened. That matches what the words suggest — standing by is being ready and
+mostly quiet; being active is taking part — and the previous naming had them the wrong way round
+for anyone reading the labels rather than the source.
+
+Two properties are preserved deliberately. No mode may drop a floor below 0.2, because a comment
+the model itself is barely confident in is not worth hearing however forward the posture. And
+feedback may still only *raise* the bar (ADR-045), so a complaint tightens even ACTIVE — the most
+talkative mode is not exempt from being told to be quiet.
+
+QUIET and OFF remain the modes that never volunteer. An unspecified mode on the backend routes now
+defaults to STANDBY rather than ACTIVE, since a caller that did not choose should not get the most
+forward behaviour.
+
+The cost is real and belongs in the record: ACTIVE shortens the decision interval fivefold and
+quadruples the budget, and asking is what is billed (risk 40). It is the right mode alone in a car
+and the wrong one in a room full of people.
+
+## ADR-051: Being named is being asked
+
+**Status:** Accepted (2026-09-09)
+
+A transcript line that opens by addressing Operator by name is sent as `DIRECT_ADDRESS` rather
+than `AMBIENT`.
+
+Until this, `DIRECT_ADDRESS` could only be produced by the Milestone 15 remote button, so speaking
+to Operator by name did nothing at all: "Operator, what are the colours in the rainbow" was judged
+by the uninvited rules — strict floors, silence when unsure — and produced silence. Being addressed
+by name is the most natural way to ask something aloud, and it was the one route in that nothing
+listened for.
+
+Matching is strict about position and loose at the edges. The name must fall in the first two
+words, because "the switchboard operator called" is somebody talking *about* an operator while
+"operator, what time is it" is somebody talking *to* one — three words was tried and was enough to
+confuse the two. Near-misses of the same shape are accepted, since transcription mangles a
+four-syllable word regularly and returns "operater" or "opperator"; one edit of tolerance, and only
+between words of similar length, so "operate" and "operation" are not caught.
+
+The asymmetry justifies the looseness: a false positive means Operator answers something nobody
+quite asked, while a false negative means it ignores you when you used its name. The second is
+worse, and it is the one people notice.

@@ -16,7 +16,8 @@ class AmbientDeciderTest {
 
     private class Recorder {
         var calls = 0
-        fun decide(): Boolean { calls++; return true }
+        var lastTrigger: String? = null
+        fun decide(trigger: String): Boolean { calls++; lastTrigger = trigger; return true }
     }
 
     private fun decider(
@@ -25,7 +26,35 @@ class AmbientDeciderTest {
         recorder: Recorder,
         audioAllowed: () -> Boolean = { true },
         settleMillis: Long = 2_500,
-    ) = AmbientDecider(transcript, scope, { recorder.decide() }, audioAllowed, settleMillis)
+    ) = AmbientDecider(transcript, scope, { trigger -> recorder.decide(trigger) }, audioAllowed, settleMillis)
+
+    @Test
+    fun `being named makes it a direct address`() = runTest {
+        // The failure that prompted this: "Operator, what are the colours in the rainbow" was
+        // judged as AMBIENT, faced the strict uninvited floors, and produced silence (ADR-051).
+        val t = RollingTranscript()
+        val r = Recorder()
+        val d = decider(t, this, r)
+        d.setEnabled(true)
+
+        t.add("Operator, what are all the colors in the rainbow")
+        advanceUntilIdle()
+
+        assertEquals("DIRECT_ADDRESS", r.lastTrigger)
+    }
+
+    @Test
+    fun `an ordinary remark stays ambient`() = runTest {
+        val t = RollingTranscript()
+        val r = Recorder()
+        val d = decider(t, this, r)
+        d.setEnabled(true)
+
+        t.add("the deadline moved to Thursday")
+        advanceUntilIdle()
+
+        assertEquals("AMBIENT", r.lastTrigger)
+    }
 
     @Test
     fun `it does nothing until switched on`() = runTest {

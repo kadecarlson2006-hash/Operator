@@ -32,16 +32,17 @@ class FeedbackGatingTest {
         clock = clock,
     ) to clock
 
+    // STANDBY applies no floor adjustment, so these measure the feedback penalty alone.
     private fun ambient() = DecisionRequest(
         trigger = DecisionTrigger.AMBIENT,
         recentTranscript = "someone is talking about the deadline",
-        mode = OperatorMode.ACTIVE,
+        mode = OperatorMode.STANDBY,
     )
 
     private fun invited() = DecisionRequest(
         trigger = DecisionTrigger.COMMENT_NOW,
         recentTranscript = "someone is talking about the deadline",
-        mode = OperatorMode.ACTIVE,
+        mode = OperatorMode.STANDBY,
     )
 
     /** Just above the base floors, so any penalty at all pushes it under. */

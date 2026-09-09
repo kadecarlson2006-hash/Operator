@@ -142,8 +142,9 @@ class DecisionRoutesTest {
     @Test
     fun `only model calls are billed, and they show up in usage`() = testApplication {
         setup(FakeAi(SPEAK_JSON))
-        // Gated locally: no model call, so nothing recorded.
-        decide(client, """{"trigger":"AMBIENT","transcript":["x"],"mode":"STANDBY"}""")
+        // Gated locally: no model call, so nothing recorded. QUIET rather than STANDBY, which
+        // volunteers occasionally since ADR-050 - QUIET is now the mode that never does.
+        decide(client, """{"trigger":"AMBIENT","transcript":["x"],"mode":"QUIET"}""")
         assertEquals(0, usage.report().allTime.calls)
 
         decide(client, """{"trigger":"COMMENT_NOW","transcript":["Someone: the deadline?"]}""")
