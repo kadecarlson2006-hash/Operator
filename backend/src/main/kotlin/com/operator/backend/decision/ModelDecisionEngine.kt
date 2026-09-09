@@ -17,6 +17,7 @@ import com.operator.core.decision.DecisionTrigger
 import com.operator.core.decision.ResponseCategory
 import com.operator.core.decision.ResponseDecision
 import com.operator.core.decision.ResponseDecisionEngine
+import com.operator.core.wake.WakeWord
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -94,8 +95,27 @@ class ModelDecisionEngine(
         // Timed separately: retrieval embeds the transcript before searching, so it is a whole
         // provider round trip of its own. A single total hides which of the three calls on this
         // path - embed, model, search - is the slow one.
+        // Live search when the user actually asked and the question concerns the present
+        // (ADR-052). Spoken questions arrive here, not on the answer path, so without this
+        // "Operator, what is the weather in Salina today" could never be answered with current
+        // information however the search settings were configured. Ambient moments never search:
+        // they run on every lull, and the question there is whether to speak, not what is true.
+        //
+        // Decided before retrieval, because it also decides whether retrieval is worth doing.
+        val invited = request.trigger != DecisionTrigger.AMBIENT
+        val searched = invited && webSearch != null && NeedsCurrentInformation.judge(request.recentTranscript)
+        (provider as? OpenRouterProvider)?.webSearch = if (searched) webSearch else null
+
         val retrievalStartedAt = clock()
-        val retrieved = retrieval?.let {
+        // Skipped when live search is about to run. A question about today's weather or this
+        // season's roster is about the world, not about anything the user stored, so embedding the
+        // transcript to search memory is a whole provider round trip spent on nothing - and it is
+        // spent on precisely the questions where latency is most visible, because search is
+        // already adding seconds of its own.
+        //
+        // The trade is real: "what did I say about the Rams game" would want both. Search is the
+        // better bet there, since the memory would have to have been stored deliberately.
+        val retrieved = retrieval?.takeUnless { searched }?.let {
             runCatching {
                 it.retrieve(request.recentTranscript, mode = request.mode, trigger = RetrievalTrigger.AMBIENT)
             }.getOrElse { e ->
@@ -117,15 +137,6 @@ class ModelDecisionEngine(
                 unwantedComments = unwantedComments(),
             ),
         ).joinToString("\n\n")
-
-        // Live search when the user actually asked and the question concerns the present
-        // (ADR-052). Spoken questions arrive here, not on the answer path, so without this
-        // "Operator, what is the weather in Salina today" could never be answered with current
-        // information however the search settings were configured. Ambient moments never search:
-        // they run on every lull, and the question there is whether to speak, not what is true.
-        val invited = request.trigger != DecisionTrigger.AMBIENT
-        val searched = invited && webSearch != null && NeedsCurrentInformation.judge(request.recentTranscript)
-        (provider as? OpenRouterProvider)?.webSearch = if (searched) webSearch else null
 
         val modelStartedAt = clock()
         val raw = try {
@@ -174,9 +185,24 @@ class ModelDecisionEngine(
             DecisionTrigger.DIRECT_ADDRESS -> appendLine("Operator was addressed directly. Answer the question.")
             DecisionTrigger.AMBIENT -> appendLine("Nobody asked. Say nothing unless it clearly earns its place.")
         }
+
+        // The thing actually said, in the user message rather than only inside the system prompt.
+        // Two reasons. The model reads the last user turn as the request, and web search builds
+        // its query from it - a user message reading only "Trigger: DIRECT_ADDRESS ... Decide now"
+        // gives the search nothing to look for, so search would be enabled and useless.
+        latestLine(request.recentTranscript)?.let { line ->
+            appendLine()
+            appendLine(if (request.trigger == DecisionTrigger.AMBIENT) "Last thing said:" else "What was said to you:")
+            appendLine(WakeWord.stripAddress(line))
+        }
+
         appendLine()
         appendLine("Decide now. Reply with the JSON object only.")
     }
+
+    /** The most recent line of the rolling window, without its speaker prefix. */
+    private fun latestLine(transcript: String): String? =
+        transcript.lineSequence().map { it.trim() }.lastOrNull { it.isNotEmpty() }
 
     /**
      * Turns the model's reply into a decision, or null when it cannot be read.

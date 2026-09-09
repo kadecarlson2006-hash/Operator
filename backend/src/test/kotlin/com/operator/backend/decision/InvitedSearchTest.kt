@@ -19,7 +19,9 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * The two things the user asked for, as tests:
@@ -67,6 +69,11 @@ class InvitedSearchTest {
 
     private fun searchedIn(body: String) = Json.parseToJsonElement(body).jsonObject.containsKey("plugins")
 
+    /** The last user message, which is what the model reads as the request and search queries on. */
+    private fun userMessage(body: String): String =
+        Json.parseToJsonElement(body).jsonObject["messages"]!!.jsonArray
+            .last().jsonObject["content"]!!.jsonPrimitive.content
+
     @Test
     fun `a spoken weather question searches`(): Unit = runBlocking {
         val sent = mutableListOf<String>()
@@ -81,6 +88,28 @@ class InvitedSearchTest {
             spoken("Someone: operator did you see the Rams, Aaron Donald isn't traveling to Australia with the team"),
         )
         assertTrue(searchedIn(sent.single()), "news about a team must reach live search")
+    }
+
+    @Test
+    fun `the question itself reaches the user message`(): Unit = runBlocking {
+        // Search builds its query from the last user turn. When that read only "Trigger:
+        // DIRECT_ADDRESS ... Decide now", there was nothing to search for - search would have
+        // been enabled and useless.
+        val sent = mutableListOf<String>()
+        engineWith(sent).decide(spoken("Someone: operator what's the weather in Salina today"))
+        val content = userMessage(sent.single())
+        assertTrue(content.contains("weather in Salina", ignoreCase = true), "the question is missing: $content")
+    }
+
+    @Test
+    fun `the wake word is stripped so the query reads as a question`(): Unit = runBlocking {
+        val sent = mutableListOf<String>()
+        engineWith(sent).decide(spoken("Someone: operator what's the weather in Salina today"))
+        val content = userMessage(sent.single())
+        assertFalse(
+            content.contains("operator what", ignoreCase = true),
+            "the address should not be part of the search query: $content",
+        )
     }
 
     @Test
