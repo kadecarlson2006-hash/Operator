@@ -5,7 +5,9 @@ import com.operator.core.model.WitLevel
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class OperatorConfigTest {
 
@@ -55,5 +57,15 @@ class OperatorConfigTest {
     fun `record test duration is bounded`() {
         assertFailsWith<IllegalArgumentException> { OperatorConfig(recordTestDurationMillis = 100) }
         assertFailsWith<IllegalArgumentException> { OperatorConfig(recordTestDurationMillis = 60_000) }
+    }
+
+    @Test
+    fun `web search is on unless it is switched off`() {
+        // Pinned because it is a default that spends money and changes answers, and because
+        // nothing caught the reversal when it was made. Off, Operator answers from training data
+        // and sounds exactly as sure as when it has looked.
+        assertTrue(OperatorConfig().webSearchEnabled)
+        assertFalse(OperatorConfig.fromMap(mapOf(OperatorConfig.Keys.WEB_SEARCH_ENABLED to "false")).webSearchEnabled)
+        assertTrue(OperatorConfig.fromMap(mapOf(OperatorConfig.Keys.WEB_SEARCH_ENABLED to "true")).webSearchEnabled)
     }
 }

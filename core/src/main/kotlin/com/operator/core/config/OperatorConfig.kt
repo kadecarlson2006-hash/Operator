@@ -28,10 +28,21 @@ data class OperatorConfig(
     /** Embedding model for semantic memory retrieval (Milestone 7). */
     val embeddingModelId: String? = null,
     /**
-     * Whether answers may search the web for current information (ADR-052). Off by default:
-     * search is billed per call and adds latency, and most questions do not need it.
+     * Whether answers may search the web for current information (ADR-052).
+     *
+     * On by default, which is a reversal. It was off because search is billed per call and adds
+     * latency - but that reasoning assumed search ran on everything, and the gate that decides
+     * per question now holds: greetings, arithmetic and settled facts do not search, and
+     * "I don't know" no longer does either.
+     *
+     * What the old default actually bought was the failure it was meant to avoid being invisible.
+     * Asked who wears 95 for the Rams, Operator answered from 2024 training data - fluently,
+     * confidently, wrongly - and nothing in the answer said it had not looked. A stale answer
+     * delivered with confidence is worth less than a fraction of a cent saved.
+     *
+     * Set OPERATOR_WEB_SEARCH=false to go back to answering from recollection only.
      */
-    val webSearchEnabled: Boolean = false,
+    val webSearchEnabled: Boolean = true,
     /** How many results to pull in. More context, more cost. */
     val webSearchMaxResults: Int = 3,
     /**
