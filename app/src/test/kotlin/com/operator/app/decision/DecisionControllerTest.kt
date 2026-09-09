@@ -202,6 +202,29 @@ class DecisionControllerTest {
         assertNull(c.state.value.reasonCode)
     }
 
+    @Test
+    fun `carries whether the answer was searched, and where the time went`() = runTest {
+        val searched = speaks.copy(searched = true, retrievalMillis = 0, modelMillis = 5_100, latencyMillis = 5_120)
+        val c = controller(FakeBackend(searched), RollingTranscript(), this)
+        c.request("DIRECT_ADDRESS")
+        advanceUntilIdle()
+
+        // Without these the panel cannot tell a current answer from a remembered one, which is the
+        // whole difference between a right answer and a confident wrong one.
+        assertTrue("search should be reported", c.state.value.searched)
+        assertEquals("retrieval is skipped when searching", 0L, c.state.value.retrievalMillis)
+        assertEquals("model time should be reported", 5_100L, c.state.value.modelMillis)
+    }
+
+    @Test
+    fun `an unsearched answer is not reported as searched`() = runTest {
+        val c = controller(FakeBackend(speaks), RollingTranscript(), this)
+        c.request("DIRECT_ADDRESS")
+        advanceUntilIdle()
+
+        assertFalse("nothing searched here", c.state.value.searched)
+    }
+
     private companion object {
         val speaks = DecideResponse(
             shouldSpeak = true, category = "USEFUL_CONTEXT", reasonCode = "USEFUL_CONTEXT",

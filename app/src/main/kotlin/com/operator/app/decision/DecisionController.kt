@@ -33,6 +33,11 @@ data class DecisionState(
     val model: String? = null,
     val suppressedAfterModel: Boolean = false,
     val latencyMillis: Long = 0,
+    /** True when live search backed the answer rather than the model's own recollection. */
+    val searched: Boolean = false,
+    /** Where the time went: memory retrieval, then the model call including any search. */
+    val retrievalMillis: Long = 0,
+    val modelMillis: Long = 0,
     val decisions: Int = 0,
     val spokenCount: Int = 0,
     val error: String? = null,
@@ -163,6 +168,9 @@ class DecisionController(
                 model = decision.model,
                 suppressedAfterModel = decision.suppressedAfterModel,
                 latencyMillis = decision.latencyMillis,
+                searched = decision.searched,
+                retrievalMillis = decision.retrievalMillis,
+                modelMillis = decision.modelMillis,
                 trigger = trigger,
                 // A new decision is a new thing to judge, so any earlier verdict stops applying.
                 feedbackSent = null,

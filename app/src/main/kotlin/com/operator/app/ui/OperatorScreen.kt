@@ -552,7 +552,19 @@ private fun DecisionPanel(state: OperatorUiState, actions: OperatorActions) {
             }
             if (d.modelCalled) {
                 KeyValueRow("SCORES", "confidence %.2f · relevance %.2f".format(d.confidence, d.relevance))
+                // Whether the answer is grounded in something current or in what the model happens
+                // to remember. The difference is invisible in the wording, and matters a lot.
+                KeyValueRow(
+                    "SOURCE",
+                    if (d.searched) "live web search" else "the model's own recollection",
+                    if (d.searched) OperatorColors.Amber else OperatorColors.CreamDim,
+                )
                 KeyValueRow("LATENCY", "${d.latencyMillis} ms", latencyColor(d.latencyMillis))
+                // Which half of the wait to blame: the memory lookup, or the model call and any
+                // search inside it.
+                if (d.retrievalMillis > 0 || d.modelMillis > 0) {
+                    KeyValueRow("BREAKDOWN", "${d.retrievalMillis} ms memory · ${d.modelMillis} ms model")
+                }
             }
             KeyValueRow("SPOKEN / DECIDED", "${d.spokenCount} / ${d.decisions}")
             d.spoken?.let {
