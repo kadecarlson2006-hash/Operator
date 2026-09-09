@@ -47,6 +47,11 @@ data class BackendConfig(
         // Whether this is set is the difference between semantic and lexical retrieval, so its
         // absence from the startup line reads as "no embeddings" when it is really "not logged".
         "embeddingModelId" to operator.embeddingModelId,
+        // Reported for the same reason as the model IDs: a setting nobody can see is a setting
+        // nobody can confirm took effect, and both of these change what leaves this machine.
+        "webSearch" to operator.webSearchEnabled.toString(),
+        "zeroDataRetention" to operator.zeroDataRetention.toString(),
+        "providerSort" to operator.providerSort,
         "ttsProvider" to operator.ttsProvider,
         "elevenLabsVoiceId" to operator.elevenLabsVoiceId,
         "elevenLabsModelId" to operator.elevenLabsModelId,
