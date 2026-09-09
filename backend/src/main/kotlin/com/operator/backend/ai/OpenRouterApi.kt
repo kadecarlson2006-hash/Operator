@@ -1,5 +1,6 @@
 package com.operator.backend.ai
 
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -28,19 +29,30 @@ data class ChatMessage(val role: String, val content: String) {
 }
 
 /**
- * OpenRouter's built-in web search (ADR-052).
+ * OpenRouter's web-search plugin (ADR-052).
  *
- * Shape taken from `@openrouter/ai-sdk-provider`, like the rest of this file - the hosted
- * reference is unreachable from the build sandbox, so this is the same substitution recorded in
- * risk 27, and carries the same caveat (risk 62).
+ * The `plugins` array, not `web_search_options`. The SDK documents the latter as "for models that
+ * support native web search" - a model with search built in - while the plugin is OpenRouter
+ * running the search itself and injecting the results, which works with any model. Sending
+ * `web_search_options` to `deepseek/deepseek-v4-flash` was silently ignored: the answer stayed
+ * stale while the call still took 22 seconds and cost four times as much.
+ *
+ * Shape taken from `@openrouter/ai-sdk-provider`, like the rest of this file, and still unverified
+ * against a live call (risk 62).
  */
 @Serializable
 data class WebSearchOptions(
+    // @EncodeDefault because the client sets encodeDefaults = false, which would otherwise drop
+    // this field for equalling its default - sending a plugin with no id, which the API would
+    // reject or ignore. The test that caught this asserted the id was present on the wire.
+    @EncodeDefault val id: String = WEB_PLUGIN_ID,
     @SerialName("max_results") val maxResults: Int? = null,
     @SerialName("search_prompt") val searchPrompt: String? = null,
-    /** "native" uses the provider's own search, "exa" uses Exa. Null lets OpenRouter choose. */
+    /** "native" uses a provider's own search, "exa" uses Exa. Null lets OpenRouter choose. */
     val engine: String? = null,
 )
+
+const val WEB_PLUGIN_ID = "web"
 
 /**
  * Provider routing preferences (ADR-053).
@@ -72,8 +84,12 @@ data class ChatCompletionRequest(
     @SerialName("max_tokens") val maxTokens: Int? = null,
     val temperature: Double? = null,
     val stream: Boolean = false,
-    /** Absent unless the caller asked for it: search costs money and time on every call. */
-    @SerialName("web_search_options") val webSearchOptions: WebSearchOptions? = null,
+    /**
+     * Absent unless the caller asked for it: search costs money and time on every call.
+     *
+     * A list because that is OpenRouter's shape, though only the web plugin is ever sent.
+     */
+    val plugins: List<WebSearchOptions>? = null,
     val provider: ProviderPreferences? = null,
 )
 

@@ -184,7 +184,10 @@ fun Route.aiRoutes(
         // snapshot of its training data and has no idea how stale that is; search is the only
         // thing that fixes it (ADR-052). Deliberately not applied to /decide, which runs on every
         // lull - searching there would multiply both the latency and the bill.
-        (provider as? OpenRouterProvider)?.webSearch = webSearch
+        // Only when the question plausibly needs current information. Searching the web to say
+        // hello cost four times the price and twenty seconds, for a greeting (ADR-052).
+        (provider as? OpenRouterProvider)?.webSearch =
+            webSearch?.takeIf { NeedsCurrentInformation.judge(request.prompt) }
 
         val startedAt = System.nanoTime()
         val result = try {

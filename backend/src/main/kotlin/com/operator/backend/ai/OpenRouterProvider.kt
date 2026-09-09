@@ -56,7 +56,7 @@ class OpenRouterProvider(
             models = fallbacks.takeIf { it.isNotEmpty() },
             maxTokens = request.maxOutputTokens,
             temperature = temperature,
-            webSearchOptions = webSearch,
+            plugins = webSearch?.let { listOf(it) },
             provider = providerPreferences,
         )
         val startedAt = System.nanoTime()

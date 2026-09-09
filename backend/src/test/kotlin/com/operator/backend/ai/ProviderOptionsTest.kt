@@ -10,6 +10,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import com.operator.core.ai.AIRequest
@@ -38,17 +39,23 @@ class ProviderOptionsTest {
         val body = Json.parseToJsonElement(sent.single()).jsonObject
         // encodeDefaults is off, so absent means absent: a request that asked for neither must not
         // start paying for search or restricting routing by accident.
-        assertFalse(body.containsKey("web_search_options"), "search must be opt-in")
+        assertFalse(body.containsKey("plugins"), "search must be opt-in")
         assertFalse(body.containsKey("provider"), "routing preferences must be opt-in")
     }
 
     @Test
-    fun `web search travels with the request when enabled`() {
+    fun `web search travels as the plugin, not as native search options`() {
+        // web_search_options only reaches models with search built in, and was silently ignored
+        // by deepseek - stale answer, 22 seconds, four times the cost. The plugin is OpenRouter
+        // running the search itself, and works with any model.
         val sent = mutableListOf<String>()
         val p = provider(sent).apply { webSearch = WebSearchOptions(maxResults = 5) }
         ask(p)
-        val opts = Json.parseToJsonElement(sent.single()).jsonObject["web_search_options"]!!.jsonObject
-        assertEquals(5, opts["max_results"]!!.jsonPrimitive.content.toInt())
+        val body = Json.parseToJsonElement(sent.single()).jsonObject
+        assertFalse(body.containsKey("web_search_options"), "the native-only field must not be used")
+        val plugin = body["plugins"]!!.jsonArray.single().jsonObject
+        assertEquals("web", plugin["id"]!!.jsonPrimitive.content)
+        assertEquals(5, plugin["max_results"]!!.jsonPrimitive.content.toInt())
     }
 
     @Test
