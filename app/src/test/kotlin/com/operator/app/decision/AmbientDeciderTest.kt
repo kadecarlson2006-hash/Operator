@@ -41,6 +41,10 @@ class AmbientDeciderTest {
         advanceUntilIdle()
 
         assertEquals("DIRECT_ADDRESS", r.lastTrigger)
+
+        // The watcher runs until switched off, and runTest waits for every child of the test
+        // scope. Leaving it on hangs the test for the full 60s timeout rather than failing.
+        d.setEnabled(false)
     }
 
     @Test
@@ -54,6 +58,8 @@ class AmbientDeciderTest {
         advanceUntilIdle()
 
         assertEquals("AMBIENT", r.lastTrigger)
+
+        d.setEnabled(false)
     }
 
     @Test
