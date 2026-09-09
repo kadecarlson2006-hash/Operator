@@ -170,7 +170,14 @@ class ModelDecisionEngine(
             ?: if (decoded.shouldSpeak) ResponseCategory.USEFUL_CONTEXT else ResponseCategory.NO_RESPONSE
 
         if (!decoded.shouldSpeak || text.isNullOrBlank()) {
-            return ResponseDecision.silence(decoded.reasonCode?.takeIf { it.isNotBlank() } ?: "MODEL_CHOSE_SILENCE")
+            // Keep what the model reported. These are the only numbers that say how near it came
+            // to speaking, which is what makes the floors tunable at all (risk 44, risk 50).
+            return ResponseDecision.silence(
+                reasonCode = decoded.reasonCode?.takeIf { it.isNotBlank() } ?: "MODEL_CHOSE_SILENCE",
+                confidence = decoded.confidence.coerceIn(0f, 1f),
+                relevance = decoded.relevance.coerceIn(0f, 1f),
+                urgency = decoded.urgency.coerceIn(0f, 1f),
+            )
         }
 
         return ResponseDecision(

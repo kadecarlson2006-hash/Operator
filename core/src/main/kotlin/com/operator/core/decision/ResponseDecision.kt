@@ -41,12 +41,26 @@ data class ResponseDecision(
 
     companion object {
         /** The most common outcome. */
-        fun silence(reasonCode: String = "NO_RESPONSE"): ResponseDecision = ResponseDecision(
+        /**
+         * [confidence] here means confidence *in the silence*, which is why it defaults to 1: a
+         * decision refused by the local rules is not in any doubt.
+         *
+         * When the model itself declined, pass its own scores instead. They are the only evidence
+         * of how close it came to speaking, and discarding them made every silent decision read
+         * as "confidence 1.00, relevance 0.00" - a constant that looks like a measurement and
+         * invites tuning against numbers nothing produced (risk 50).
+         */
+        fun silence(
+            reasonCode: String = "NO_RESPONSE",
+            confidence: Float = 1f,
+            relevance: Float = 0f,
+            urgency: Float = 0f,
+        ): ResponseDecision = ResponseDecision(
             shouldSpeak = false,
             category = ResponseCategory.NO_RESPONSE,
-            confidence = 1f,
-            urgency = 0f,
-            relevance = 0f,
+            confidence = confidence,
+            urgency = urgency,
+            relevance = relevance,
             response = null,
             reasonCode = reasonCode,
         )
