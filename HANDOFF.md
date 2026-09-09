@@ -145,10 +145,15 @@ needed no code changes. Building from the command line also works:
 
 `local.properties` (git-ignored, not in the repo) is configured. Two things about it:
 
-- **`OPERATOR_BACKEND_URL` is the laptop's LAN IP**, currently `http://192.168.1.124:8080`, not
-  localhost - the phone cannot reach localhost. **It changes when the network does**, so if the
-  app suddenly cannot reach the backend, check this before assuming anything is broken. Phone and
-  laptop must be on the same Wi-Fi, and Windows Firewall prompts on the first connection.
+- **`OPERATOR_BACKEND_URL` is the laptop's LAN IP**, not localhost - the phone cannot reach
+  localhost. **DHCP moves it**: it changed three times in one evening (.124, .122, .215), and
+  every move looks exactly like a broken app, because the error just says "backend unreachable".
+  **This is the first thing to check, before anything else.** Run `.\scripts\set-backend-ip.ps1`,
+  which writes the current address in, then rebuild - a Gradle sync is not enough, the URL is
+  compiled into the APK. A DHCP reservation on the router removes the problem for good.
+  Windows also blocks inbound 8080 by default; the rule only needs adding once:
+  `New-NetFirewallRule -DisplayName "Operator backend 8080" -Direction Inbound -LocalPort 8080 -Protocol TCP -Action Allow`
+  from an administrator prompt. Phone and laptop must be on the same Wi-Fi.
 - **The model IDs in it are display-only.** The app reads them into `BuildConfig` for its
   diagnostics panel; it asks the backend for a *tier* (FAST/DEEP/VISION) and never names a model.
   Changing them there changes nothing but the readout. `OPERATOR_EMBEDDING_MODEL_ID` is not read
