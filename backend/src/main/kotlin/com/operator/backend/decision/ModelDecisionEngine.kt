@@ -2,6 +2,9 @@ package com.operator.backend.decision
 
 import com.operator.backend.ai.AIProviderException
 import com.operator.backend.ai.ContextAssembler
+import com.operator.backend.ai.NeedsCurrentInformation
+import com.operator.backend.ai.OpenRouterProvider
+import com.operator.backend.ai.WebSearchOptions
 import com.operator.backend.ai.PromptLibrary
 import com.operator.backend.memory.MemoryRetrievalEngine
 import com.operator.backend.memory.RetrievalTrigger
@@ -58,6 +61,8 @@ class ModelDecisionEngine(
      * construction would go stale the moment somebody gave feedback.
      */
     private val unwantedComments: () -> List<String> = ::emptyList,
+    /** Live search for invited questions only (ADR-052). Null disables it entirely. */
+    private val webSearch: WebSearchOptions? = null,
     private val promptVersion: String = DEFAULT_PROMPT_VERSION,
     private val clock: () -> Long = System::currentTimeMillis,
 ) : ResponseDecisionEngine {
@@ -86,6 +91,10 @@ class ModelDecisionEngine(
         // provider that is timing out is exactly when an unbudgeted retry loop would hurt most.
         policy.recordDecision(startedAt)
 
+        // Timed separately: retrieval embeds the transcript before searching, so it is a whole
+        // provider round trip of its own. A single total hides which of the three calls on this
+        // path - embed, model, search - is the slow one.
+        val retrievalStartedAt = clock()
         val retrieved = retrieval?.let {
             runCatching {
                 it.retrieve(request.recentTranscript, mode = request.mode, trigger = RetrievalTrigger.AMBIENT)
@@ -94,6 +103,7 @@ class ModelDecisionEngine(
                 null
             }
         }
+        val retrievalMillis = clock() - retrievalStartedAt
 
         val systemPrompt = listOfNotNull(
             prompts.load(promptVersion),
@@ -108,6 +118,16 @@ class ModelDecisionEngine(
             ),
         ).joinToString("\n\n")
 
+        // Live search when the user actually asked and the question concerns the present
+        // (ADR-052). Spoken questions arrive here, not on the answer path, so without this
+        // "Operator, what is the weather in Salina today" could never be answered with current
+        // information however the search settings were configured. Ambient moments never search:
+        // they run on every lull, and the question there is whether to speak, not what is true.
+        val invited = request.trigger != DecisionTrigger.AMBIENT
+        val searched = invited && webSearch != null && NeedsCurrentInformation.judge(request.recentTranscript)
+        (provider as? OpenRouterProvider)?.webSearch = if (searched) webSearch else null
+
+        val modelStartedAt = clock()
         val raw = try {
             provider.generate(
                 AIRequest(
@@ -138,6 +158,9 @@ class ModelDecisionEngine(
             reasonCode = reviewed.reasonCode,
             suppressedAfterModel = parsed.shouldSpeak && !reviewed.shouldSpeak,
             latencyMillis = clock() - startedAt,
+            searched = searched,
+            retrievalMillis = retrievalMillis,
+            modelMillis = clock() - modelStartedAt,
         )
         return reviewed
     }
@@ -212,4 +235,11 @@ data class DecisionOutcome(
     val reasonCode: String? = null,
     val suppressedAfterModel: Boolean = false,
     val latencyMillis: Long = 0,
+    /** Whether live search backed this answer, so a current fact is distinguishable from a
+     *  remembered one (risk 64). */
+    val searched: Boolean = false,
+    /** Time spent embedding and searching memory before the model was asked anything. */
+    val retrievalMillis: Long = 0,
+    /** Time in the model call itself, including any web search it performed. */
+    val modelMillis: Long = 0,
 )

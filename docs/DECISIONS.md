@@ -704,6 +704,20 @@ conversation, dozens of times an hour, mostly to conclude that nothing needs say
 there would multiply both the bill and the delay for no benefit, since the question is whether to
 speak, not what the facts are.
 
+**Amended 2026-09-09.** Excluding the decision path entirely was wrong, because that is where
+*spoken* questions arrive. Since ADR-051 made being named a direct address, "Operator, what is the
+weather in Salina today" reaches `/decide`, not `/ai/respond` — so it could never have been
+answered with current information however the settings were configured. The rule is now the
+trigger, not the route: an **invited** decision may search, an ambient one never may. The cost
+argument is untouched, since it was always about the lull traffic.
+
+Search is also conditional on the question. The first live test searched the web to answer "say
+hello in one short sentence", at four times the cost of the same call without it.
+`NeedsCurrentInformation` is a keyword heuristic rather than a model call, because asking a model
+whether to search costs the thing being saved, and it errs toward searching: a needless search
+costs a fraction of a cent, while a missed one produces a confidently stale answer, which is the
+failure that prompted all of this.
+
 Off by default. Most questions do not need it, and a feature that quietly bills per call should be
 switched on deliberately.
 

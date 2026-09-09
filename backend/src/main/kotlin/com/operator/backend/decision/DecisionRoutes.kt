@@ -46,6 +46,11 @@ data class DecideResponse(
     /** True when the model wanted to speak and the local rules overruled it. */
     val suppressedAfterModel: Boolean = false,
     val latencyMillis: Long = 0,
+    /** True when live search backed the answer rather than the model's own recollection. */
+    val searched: Boolean = false,
+    /** Where the time went: memory retrieval, then the model call including any search. */
+    val retrievalMillis: Long = 0,
+    val modelMillis: Long = 0,
 )
 
 /**
@@ -131,6 +136,9 @@ fun Route.decisionRoutes(engine: ResponseDecisionEngine, usage: UsageTracker) {
                 model = outcome.modelId,
                 suppressedAfterModel = outcome.suppressedAfterModel,
                 latencyMillis = outcome.latencyMillis,
+                searched = outcome.searched,
+                retrievalMillis = outcome.retrievalMillis,
+                modelMillis = outcome.modelMillis,
             ),
         )
     }

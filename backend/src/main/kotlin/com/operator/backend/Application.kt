@@ -132,6 +132,7 @@ class BackendDependencies(
         config = config.operator,
         retrieval = retrieval,
         unwantedComments = { recentlyUnwanted },
+        webSearch = webSearch,
     )
 
     /**
