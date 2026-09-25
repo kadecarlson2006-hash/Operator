@@ -78,4 +78,13 @@ class OperatorConfigTest {
         assertNull(effort("default"), "default leaves it to the model")
         assertEquals("low", effort("turbo"), "an unknown value falls back rather than being sent")
     }
+
+    @Test
+    fun `searched answers think minimally unless told otherwise`() {
+        fun effort(v: String?) = OperatorConfig.fromMap(mapOf(OperatorConfig.Keys.SEARCH_REASONING_EFFORT to v)).searchReasoningEffort
+        assertEquals("minimal", OperatorConfig().searchReasoningEffort)
+        assertEquals("low", effort("low"))
+        assertNull(effort("default"))
+        assertEquals("minimal", effort("fast please"))
+    }
 }

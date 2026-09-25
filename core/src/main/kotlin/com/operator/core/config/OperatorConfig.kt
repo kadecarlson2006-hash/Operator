@@ -31,6 +31,12 @@ data class OperatorConfig(
      * answered. Low also keeps a spoken answer fast, which is the point of this path.
      */
     val decisionReasoningEffort: String? = "low",
+    /**
+     * Reasoning effort for an answer backed by live search. Minimal by default: the results carry
+     * the facts and the answer mostly reads them back, so thinking is the largest part of the wait
+     * that can be cut. Set "low" to trade speed back for care. Same values as above.
+     */
+    val searchReasoningEffort: String? = "minimal",
     val visionModelId: String? = null,
     /** Embedding model for semantic memory retrieval (Milestone 7). */
     val embeddingModelId: String? = null,
@@ -138,6 +144,12 @@ data class OperatorConfig(
                     in REASONING_EFFORTS -> effort
                     else -> defaults.decisionReasoningEffort
                 },
+                searchReasoningEffort = when (val effort = str(Keys.SEARCH_REASONING_EFFORT)?.lowercase()) {
+                    null -> defaults.searchReasoningEffort
+                    "default" -> null
+                    in REASONING_EFFORTS -> effort
+                    else -> defaults.searchReasoningEffort
+                },
                 visionModelId = str(Keys.VISION_MODEL_ID),
                 embeddingModelId = str(Keys.EMBEDDING_MODEL_ID),
                 webSearchEnabled = str(Keys.WEB_SEARCH_ENABLED)?.toBoolean() ?: defaults.webSearchEnabled,
@@ -174,6 +186,7 @@ data class OperatorConfig(
         const val DEEP_MODEL_ID = "OPERATOR_DEEP_MODEL_ID"
         const val DECISION_MODEL_ID = "OPERATOR_DECISION_MODEL_ID"
         const val DECISION_REASONING_EFFORT = "OPERATOR_DECISION_REASONING_EFFORT"
+        const val SEARCH_REASONING_EFFORT = "OPERATOR_SEARCH_REASONING_EFFORT"
         const val VISION_MODEL_ID = "OPERATOR_VISION_MODEL_ID"
         const val EMBEDDING_MODEL_ID = "OPERATOR_EMBEDDING_MODEL_ID"
         const val WEB_SEARCH_ENABLED = "OPERATOR_WEB_SEARCH"

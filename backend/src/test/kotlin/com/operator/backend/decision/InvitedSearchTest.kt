@@ -194,7 +194,8 @@ class InvitedSearchTest {
 
         val body = Json.parseToJsonElement(sent.last()).jsonObject
         val reasoning = body["reasoning"]!!.jsonObject
-        kotlin.test.assertEquals("low", reasoning["effort"]!!.jsonPrimitive.content)
+        // Searched, so minimal: the results carry the facts (see searchReasoningEffort).
+        kotlin.test.assertEquals("minimal", reasoning["effort"]!!.jsonPrimitive.content)
         kotlin.test.assertEquals("true", reasoning["exclude"]!!.jsonPrimitive.content, "reasoning is never shown, so never downloaded")
         assertTrue(body["max_tokens"]!!.jsonPrimitive.content.toInt() >= 1_000, "room to think and still answer")
     }
@@ -268,8 +269,12 @@ class InvitedSearchTest {
     fun `an unusable rewrite falls back to the words as spoken`(): Unit = runBlocking {
         // engineWith answers every call with decision JSON, which is not a query.
         val sent = mutableListOf<String>()
-        engineWith(sent).decide(spoken("Someone: operator what's the weather in Salina today"))
-        kotlin.test.assertEquals("what's the weather in Salina today", userMessage(sent.last()))
+        engineWith(sent).decide(spoken("Someone: operator did you see the rams aaron donald isn't traveling to AUS with the rest of the team"))
+        kotlin.test.assertEquals(2, sent.size, "the rewrite was attempted")
+        kotlin.test.assertEquals(
+            "did you see the rams aaron donald isn't traveling to AUS with the rest of the team",
+            userMessage(sent.last()),
+        )
     }
 
     @Test
@@ -290,7 +295,7 @@ class InvitedSearchTest {
                 )
             },
         )
-        ModelDecisionEngine(
+        val engine = ModelDecisionEngine(
             provider = provider,
             policy = ConversationPolicy(0, 100, 0, 1_000),
             prompts = PromptLibrary(promptDir()),
@@ -298,17 +303,21 @@ class InvitedSearchTest {
             webSearch = WebSearchOptions(maxResults = 3),
             clock = { java.time.Instant.parse("2026-09-25T04:04:00Z").toEpochMilli() },
             zone = java.time.ZoneId.of("America/Chicago"),
-        ).decide(spoken("Someone: operator what's the weather in Salina today"))
-
-        kotlin.test.assertEquals(2, sent.size, "one rewrite, one searched answer")
-        sent.forEach { body ->
-            val system = Json.parseToJsonElement(body).jsonObject["messages"]!!.jsonArray
-                .first().jsonObject["content"]!!.jsonPrimitive.content
-            assertTrue(system.contains("Thursday, September 24, 2026"), system)
-        }
-        val answered = Json.parseToJsonElement(sent[1]).jsonObject["messages"]!!.jsonArray
+        )
+        fun system(body: String) = Json.parseToJsonElement(body).jsonObject["messages"]!!.jsonArray
             .first().jsonObject["content"]!!.jsonPrimitive.content
-        assertTrue(answered.contains("11:04 PM"), "at 11pm, today's weather is tonight's: $answered")
+
+        // The weather question is searched as spoken, so the answer is the only call.
+        engine.decide(spoken("Someone: operator what's the weather in Salina today"))
+        kotlin.test.assertEquals(1, sent.size)
+        assertTrue(system(sent.single()).contains("Thursday, September 24, 2026"), system(sent.single()))
+        assertTrue(system(sent.single()).contains("11:04 PM"), "at 11pm, today's weather is tonight's")
+
+        // A question that is rewritten gets the user's date in the rewrite too.
+        sent.clear()
+        engine.decide(spoken("Someone: operator did you see the rams game got moved to AUS"))
+        kotlin.test.assertEquals(2, sent.size, "one rewrite, one searched answer")
+        sent.forEach { assertTrue(system(it).contains("Thursday, September 24, 2026"), system(it)) }
     }
 
     private fun engineReplying(reply: String): ModelDecisionEngine {
@@ -358,5 +367,59 @@ class InvitedSearchTest {
             .decide(spoken("Someone: operator what's the weather in Salina today"))
         assertFalse(decision.shouldSpeak)
         kotlin.test.assertEquals("UNREADABLE_DECISION", decision.reasonCode)
+    }
+
+    @Test
+    fun `a plain question is searched without a rewrite`(): Unit = runBlocking {
+        // One round trip instead of two: the weather question was a good query as spoken.
+        val sent = mutableListOf<String>()
+        engineWith(sent).decide(spoken("Someone: operator what's the weather in Salina today"))
+        kotlin.test.assertEquals(1, sent.size, "no rewrite call")
+        assertTrue(searchedIn(sent.single()))
+        kotlin.test.assertEquals("what's the weather in Salina today", userMessage(sent.single()))
+    }
+
+    @Test
+    fun `an unsearched decision keeps the ordinary reasoning effort`(): Unit = runBlocking {
+        val sent = mutableListOf<String>()
+        engineWith(sent).decide(spoken("Someone: operator say hello"))
+        val reasoning = Json.parseToJsonElement(sent.single()).jsonObject["reasoning"]!!.jsonObject
+        kotlin.test.assertEquals("low", reasoning["effort"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `a slow rewrite is abandoned and the words are searched as spoken`(): Unit = runBlocking {
+        val sent = mutableListOf<String>()
+        val provider = OpenRouterProvider(
+            apiKey = "k",
+            engine = MockEngine { request ->
+                val body = (request.body as io.ktor.http.content.TextContent).text
+                sent += body
+                if (!searchedIn(body)) kotlinx.coroutines.delay(10_000) // the rewrite never returns in time
+                respond(
+                    """{"model":"m","choices":[{"message":{"role":"assistant","content":${Json.encodeToString(kotlinx.serialization.json.JsonPrimitive.serializer(), kotlinx.serialization.json.JsonPrimitive(speaks))}}}]}""",
+                    HttpStatusCode.OK,
+                    headersOf("Content-Type", "application/json"),
+                )
+            },
+        )
+        val engine = ModelDecisionEngine(
+            provider = provider,
+            policy = ConversationPolicy(0, 100, 0, 1_000),
+            prompts = PromptLibrary(promptDir()),
+            config = OperatorConfig(decisionModelId = "v/decide"),
+            webSearch = WebSearchOptions(maxResults = 3),
+        )
+        val started = System.currentTimeMillis()
+        val decision = engine.decide(spoken("Someone: operator did you see the rams aaron donald isn't traveling to AUS with the rest of the team"))
+        val took = System.currentTimeMillis() - started
+
+        assertTrue(decision.shouldSpeak, "the answer still arrives")
+        assertTrue(took < 5_000, "waited $took ms; the rewrite should be cut off at about two seconds")
+        kotlin.test.assertEquals(
+            "did you see the rams aaron donald isn't traveling to AUS with the rest of the team",
+            userMessage(sent.last()),
+        )
+        assertTrue(engine.lastOutcome.rewriteMillis in 1_500..4_000, "rewrite time is reported: ${engine.lastOutcome.rewriteMillis}")
     }
 }

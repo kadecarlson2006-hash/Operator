@@ -51,6 +51,8 @@ data class DecideResponse(
     /** Where the time went: memory retrieval, then the model call including any search. */
     val retrievalMillis: Long = 0,
     val modelMillis: Long = 0,
+    /** Turning what was said into a search query, before the search could start. */
+    val rewriteMillis: Long = 0,
 )
 
 /**
@@ -139,6 +141,7 @@ fun Route.decisionRoutes(engine: ResponseDecisionEngine, usage: UsageTracker) {
                 searched = outcome.searched,
                 retrievalMillis = outcome.retrievalMillis,
                 modelMillis = outcome.modelMillis,
+                rewriteMillis = outcome.rewriteMillis,
             ),
         )
     }

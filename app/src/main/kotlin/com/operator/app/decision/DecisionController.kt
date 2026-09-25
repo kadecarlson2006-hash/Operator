@@ -38,6 +38,8 @@ data class DecisionState(
     /** Where the time went: memory retrieval, then the model call including any search. */
     val retrievalMillis: Long = 0,
     val modelMillis: Long = 0,
+    /** Turning what was said into a search query; zero when it was not needed. */
+    val rewriteMillis: Long = 0,
     val decisions: Int = 0,
     val spokenCount: Int = 0,
     val error: String? = null,
@@ -171,6 +173,7 @@ class DecisionController(
                 searched = decision.searched,
                 retrievalMillis = decision.retrievalMillis,
                 modelMillis = decision.modelMillis,
+                rewriteMillis = decision.rewriteMillis,
                 trigger = trigger,
                 // A new decision is a new thing to judge, so any earlier verdict stops applying.
                 feedbackSent = null,

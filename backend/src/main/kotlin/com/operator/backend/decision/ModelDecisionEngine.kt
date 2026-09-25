@@ -6,6 +6,7 @@ import com.operator.backend.ai.NeedsCurrentInformation
 import com.operator.backend.ai.OpenRouterProvider
 import com.operator.backend.ai.WebSearchOptions
 import com.operator.backend.ai.PromptLibrary
+import com.operator.backend.ai.QueryNeedsRewrite
 import com.operator.backend.memory.MemoryRetrievalEngine
 import com.operator.backend.memory.RetrievalTrigger
 import com.operator.core.ai.AIProvider
@@ -117,12 +118,18 @@ class ModelDecisionEngine(
         val invited = request.trigger != DecisionTrigger.AMBIENT
         val searched = invited && webSearch != null &&
             NeedsCurrentInformation.judge(question(request.recentTranscript).orEmpty())
-        // Before search is switched on, so the rewrite itself never searches.
+        // Before search is switched on, so the rewrite itself never searches. Only when it can
+        // help: a plain question is already a good query, and the rewrite is a whole round trip
+        // spent before the search can start (see QueryNeedsRewrite).
+        val rewriteStartedAt = clock()
         val searchQuery = if (searched && config.searchQueryRewrite) {
-            question(request.recentTranscript)?.let { rewriteForSearch(it, modelId) }
+            question(request.recentTranscript)
+                ?.takeIf { QueryNeedsRewrite.judge(it) }
+                ?.let { rewriteForSearch(it, modelId) }
         } else {
             null
         }
+        val rewriteMillis = clock() - rewriteStartedAt
         (provider as? OpenRouterProvider)?.webSearch = if (searched) webSearch else null
 
         val retrievalStartedAt = clock()
@@ -177,7 +184,10 @@ class ModelDecisionEngine(
                     systemPrompt = systemPrompt,
                     userContent = userContentFor(request, searched, searchQuery),
                     maxOutputTokens = MAX_OUTPUT_TOKENS,
-                    reasoningEffort = config.decisionReasoningEffort,
+                    // With search results in hand the answer is mostly reading them back, and on
+                    // a reasoning model the thinking is the largest part of the wait that is ours
+                    // to cut. Separately configurable so accuracy can be traded back.
+                    reasoningEffort = if (searched) config.searchReasoningEffort else config.decisionReasoningEffort,
                 ),
             ).text
         } catch (e: AIProviderException) {
@@ -188,6 +198,7 @@ class ModelDecisionEngine(
             lastOutcome = DecisionOutcome(
                 modelCalled = true, modelId = modelId, reasonCode = "MODEL_UNAVAILABLE", latencyMillis = clock() - startedAt,
                 searched = searched, retrievalMillis = retrievalMillis, modelMillis = clock() - modelStartedAt,
+                rewriteMillis = rewriteMillis,
             )
             return ResponseDecision.silence("MODEL_UNAVAILABLE")
         }
@@ -199,6 +210,7 @@ class ModelDecisionEngine(
             lastOutcome = DecisionOutcome(
                 modelCalled = true, modelId = modelId, reasonCode = "UNREADABLE_DECISION", latencyMillis = clock() - startedAt,
                 searched = searched, retrievalMillis = retrievalMillis, modelMillis = clock() - modelStartedAt,
+                rewriteMillis = rewriteMillis,
             )
             return ResponseDecision.silence("UNREADABLE_DECISION")
         }
@@ -215,6 +227,13 @@ class ModelDecisionEngine(
             searched = searched,
             retrievalMillis = retrievalMillis,
             modelMillis = clock() - modelStartedAt,
+            rewriteMillis = rewriteMillis,
+        )
+        // Where the wait went, without anything that was said: the one line to read when asking
+        // why an answer was slow.
+        log.info(
+            "Decided in {} ms: rewrite {} ms, memory {} ms, model {} ms (searched={}, rewritten={})",
+            lastOutcome.latencyMillis, rewriteMillis, retrievalMillis, lastOutcome.modelMillis, searched, searchQuery != null,
         )
         return reviewed
     }
@@ -235,18 +254,26 @@ class ModelDecisionEngine(
     private suspend fun rewriteForSearch(asked: String, modelId: String): String? {
         (provider as? OpenRouterProvider)?.webSearch = null
         val startedAt = clock()
+        // Capped: past this the rewrite has cost more than it can save, and the words as spoken
+        // are searched instead of waiting for it.
         val raw = try {
-            provider.generate(
-                AIRequest(
-                    modelId = modelId,
-                    systemPrompt = SEARCH_QUERY_PROMPT.replace("{today}", today()),
-                    userContent = asked,
-                    maxOutputTokens = SEARCH_QUERY_MAX_TOKENS,
-                    reasoningEffort = "minimal",
-                ),
-            ).text
+            kotlinx.coroutines.withTimeoutOrNull(SEARCH_QUERY_TIMEOUT_MS) {
+                provider.generate(
+                    AIRequest(
+                        modelId = modelId,
+                        systemPrompt = SEARCH_QUERY_PROMPT.replace("{today}", today()),
+                        userContent = asked,
+                        maxOutputTokens = SEARCH_QUERY_MAX_TOKENS,
+                        reasoningEffort = "minimal",
+                    ),
+                ).text
+            }
         } catch (e: AIProviderException) {
             log.warn("Search query rewrite failed after {} ms, searching on the words as spoken: {}", clock() - startedAt, e.message)
+            return null
+        }
+        if (raw == null) {
+            log.info("Search query rewrite passed {} ms, searching on the words as spoken", SEARCH_QUERY_TIMEOUT_MS)
             return null
         }
         val query = raw.lineSequence().map { it.trim().trim('"', '\'', '`').trim() }.firstOrNull { it.isNotEmpty() }
@@ -409,6 +436,7 @@ class ModelDecisionEngine(
 
         private const val SEARCH_QUERY_MAX_TOKENS = 300
         private const val SEARCH_QUERY_MAX_CHARS = 200
+        private const val SEARCH_QUERY_TIMEOUT_MS = 2_000L
         private val SEARCH_QUERY_PROMPT = """
             Turn what someone said into one web search query that would find the answer, or the news
             they are referring to. Today is {today}.
@@ -439,4 +467,6 @@ data class DecisionOutcome(
     val retrievalMillis: Long = 0,
     /** Time in the model call itself, including any web search it performed. */
     val modelMillis: Long = 0,
+    /** Turning what was said into a search query; zero when it was not needed. */
+    val rewriteMillis: Long = 0,
 )

@@ -562,8 +562,15 @@ private fun DecisionPanel(state: OperatorUiState, actions: OperatorActions) {
                 KeyValueRow("LATENCY", "${d.latencyMillis} ms", latencyColor(d.latencyMillis))
                 // Which half of the wait to blame: the memory lookup, or the model call and any
                 // search inside it.
-                if (d.retrievalMillis > 0 || d.modelMillis > 0) {
-                    KeyValueRow("BREAKDOWN", "${d.retrievalMillis} ms memory · ${d.modelMillis} ms model")
+                if (d.retrievalMillis > 0 || d.modelMillis > 0 || d.rewriteMillis > 0) {
+                    KeyValueRow(
+                        "BREAKDOWN",
+                        listOfNotNull(
+                            d.rewriteMillis.takeIf { it > 0 }?.let { "$it ms rewrite" },
+                            "${d.retrievalMillis} ms memory",
+                            "${d.modelMillis} ms model",
+                        ).joinToString(" · "),
+                    )
                 }
             }
             KeyValueRow("SPOKEN / DECIDED", "${d.spokenCount} / ${d.decisions}")

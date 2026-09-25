@@ -49,6 +49,14 @@ Pass = searched true, and the response says Donald stayed home from Melbourne, w
 If it still misses: try the web plugin's `engine` ("native" vs "exa", see
 @openrouter/ai-sdk-provider types) and max_results 5 before anything bigger.
 
+
+**Speed pass (unmeasured live).** Searched answers took 6.8-8.4s. Three cuts: the query rewrite
+now runs only for conversational news or shorthand (QueryNeedsRewrite; the weather question skips
+it), is abandoned after 2s, and searched answers use `OPERATOR_SEARCH_REASONING_EFFORT=minimal`
+(was low). The backend logs one line per decision - "Decided in N ms: rewrite, memory, model" -
+and the panel's BREAKDOWN shows the same. To verify: run each sentence ~8 times, compare time and
+accuracy to 8.4s / 6.8s and Rams 7-of-8. If accuracy drops, set the effort back to `low`.
+
 ## Where testing got to
 
 Stages 2 and 3, M1/M2 from stage 1, and the backend half of stage 6 are done. Stage 4 is

@@ -52,6 +52,7 @@ data class BackendConfig(
         "webSearch" to operator.webSearchEnabled.toString(),
         "searchQueryRewrite" to operator.searchQueryRewrite.toString(),
         "decisionReasoning" to (operator.decisionReasoningEffort ?: "model default"),
+        "searchReasoning" to (operator.searchReasoningEffort ?: "model default"),
         "zeroDataRetention" to operator.zeroDataRetention.toString(),
         "providerSort" to operator.providerSort,
         "ttsProvider" to operator.ttsProvider,
