@@ -18,14 +18,22 @@ Donald isn't traveling to AUS with the rest of the team" must both answer from l
 
 - **Weather: PASSED live** (searched=true, 6.2s): "In Salina, Kansas, today, Friday, September 25,
   expect showers, then a chance of thunderstorms, with a high near 79F" - from forecast.weather.gov.
-- **Rams: NOT YET.** Searched every time but found nothing. Ground truth: ESPN, "Rams' Donald won't
-  travel to Australia" - McVay kept him home from the Melbourne opener (quick turnaround); 49ers
-  won 27-7 on Sept 11. Fixes so far, each found from a live run:
-  `02c1a63` reasoning model spent all 300 tokens thinking -> effort low, max_tokens 1500;
-  `319ade0` citations were going to be read aloud -> SpeakableText;
-  `46b0a75` prompt said nothing about search results -> LIVE SEARCH RESULTS section;
-  `242ae65` search query included the instructions -> user message is the question only;
-  `a50ac99` "AUS" searched as Austin -> query rewrite before searching. **Untested live.**
+- **Rams: PASSED live 2026-09-24** (searched=true, ~7s), 7 of 8 in a batch: "Yes - Sean McVay
+  announced on September 8, 2026, that Aaron Donald would not travel with the Rams to Melbourne
+  for their September 10 opener against the 49ers and would be inactive." Earlier fixes:
+  `02c1a63` effort low, max_tokens 1500; `319ade0` SpeakableText; `46b0a75` LIVE SEARCH RESULTS;
+  `242ae65` user message is the question only; `a50ac99` query rewrite. Then, from live runs:
+  `9e1f48e` "today" is the backend's zone, not UTC (at 11pm CDT it was Friday's forecast);
+  `8ffb7ec` no dates in current-conditions queries (dated queries found history pages) and the
+  answer is told the local time; `e463381` an invited prose reply is spoken, not dropped as
+  UNREADABLE_DECISION (it was 2 in 8 Rams runs), and ** is stripped; `f2d9593` ambiguous
+  abbreviations stay as spoken - the rewrite guessed Austin for AUS a quarter of the time.
+- **Still open:** about 1 Rams run in 8, the search itself finds nothing and the model falls back to
+  "Donald retired in 2024". Next lever: `OPERATOR_WEB_SEARCH_MAX_RESULTS=5` (default 3) - costs
+  more per search, so it is the user's call. Late at night the weather answer sometimes still
+  calls tomorrow "today" despite being told the local time.
+- `EmbeddingBackfillServiceTest` "backfills only eligible ..." fails in the full backend run on
+  main and passes alone - a pre-existing ordering or timing flake, not yet looked at.
 
 User's live config (no secrets): decision model `openai/gpt-5.6-luna` (reasoning model, served by
 Azure), ZDR on, sort latency, web search on. Postgres is not running; that is fine for this.
