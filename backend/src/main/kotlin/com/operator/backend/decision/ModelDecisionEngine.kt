@@ -255,9 +255,14 @@ class ModelDecisionEngine(
     }
 
     /** Today's date where the user is, spelled out so "today" and "tonight" resolve correctly. */
-    private fun today(): String =
-        java.time.Instant.ofEpochMilli(clock()).atZone(zone).toLocalDate()
-            .format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy", java.util.Locale.US))
+    private fun today(): String = localNow("EEEE, MMMM d, yyyy")
+
+    /** The date and the hour: at 11pm "today's weather" means what is left of it, which is tonight. */
+    private fun now(): String = localNow("EEEE, MMMM d, yyyy, h:mm a")
+
+    private fun localNow(pattern: String): String =
+        java.time.Instant.ofEpochMilli(clock()).atZone(zone)
+            .format(java.time.format.DateTimeFormatter.ofPattern(pattern, java.util.Locale.US))
 
     /**
      * The user message. When searching it is the question and nothing else.
@@ -301,7 +306,7 @@ class ModelDecisionEngine(
         if (inSystemPrompt) {
             // Search results carry their own dates and the model has no clock; without this it
             // took "today" from whichever forecast day the results happened to lead with.
-            appendLine("Today is ${today()}, where the user is.")
+            appendLine("It is ${now()} where the user is.")
             appendLine(
                 if (question != null) {
                     "The user message is a web search query written from what was said. Answer what was said, from the search results."
@@ -383,7 +388,10 @@ class ModelDecisionEngine(
             they are referring to. Today is {today}.
             - Expand abbreviations and shorthand to what they most plausibly mean in context.
             - Drop conversational filler such as "did you see", "I heard", "apparently", "hey".
-            - Keep every name. Add the place, date or season when it narrows the search.
+            - Keep every name. Add the place when it narrows the search, and for news or an event the
+              season or year - which also says what an abbreviation most likely means right now.
+            - For current conditions - weather, scores, prices - keep "today", "tonight" or "now" and
+              add no date: a dated weather query finds history pages instead of the forecast.
             Reply with the query only, on one line, under fifteen words. No quotes, no explanation.
         """.trimIndent()
     }

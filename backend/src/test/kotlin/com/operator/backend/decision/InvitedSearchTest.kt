@@ -306,5 +306,8 @@ class InvitedSearchTest {
                 .first().jsonObject["content"]!!.jsonPrimitive.content
             assertTrue(system.contains("Thursday, September 24, 2026"), system)
         }
+        val answered = Json.parseToJsonElement(sent[1]).jsonObject["messages"]!!.jsonArray
+            .first().jsonObject["content"]!!.jsonPrimitive.content
+        assertTrue(answered.contains("11:04 PM"), "at 11pm, today's weather is tonight's: $answered")
     }
 }
