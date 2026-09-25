@@ -412,7 +412,8 @@ class ModelDecisionEngine(
         private val SEARCH_QUERY_PROMPT = """
             Turn what someone said into one web search query that would find the answer, or the news
             they are referring to. Today is {today}.
-            - Expand abbreviations and shorthand to what they most plausibly mean in context.
+            - Expand shorthand only where it has one meaning. An abbreviation that could be more than one
+              thing stays exactly as said: the search engine sees today's news and you do not.
             - Drop conversational filler such as "did you see", "I heard", "apparently", "hey".
             - Keep every name. Add the place when it narrows the search, and for news or an event the
               season or year - which also says what an abbreviation most likely means right now.
