@@ -184,4 +184,18 @@ class InvitedSearchTest {
         kotlin.test.assertEquals("MODEL_UNAVAILABLE", outcome.reasonCode)
         assertTrue(outcome.searched, "the search was attempted and must be reported")
     }
+
+    @Test
+    fun `the decision caps reasoning and leaves room to answer`(): Unit = runBlocking {
+        // The first live weather question came back 200 with finish_reason=length and no content:
+        // a reasoning model spent all 300 tokens thinking.
+        val sent = mutableListOf<String>()
+        engineWith(sent).decide(spoken("Someone: operator what's the weather in Salina today"))
+
+        val body = Json.parseToJsonElement(sent.single()).jsonObject
+        val reasoning = body["reasoning"]!!.jsonObject
+        kotlin.test.assertEquals("low", reasoning["effort"]!!.jsonPrimitive.content)
+        kotlin.test.assertEquals("true", reasoning["exclude"]!!.jsonPrimitive.content, "reasoning is never shown, so never downloaded")
+        assertTrue(body["max_tokens"]!!.jsonPrimitive.content.toInt() >= 1_000, "room to think and still answer")
+    }
 }

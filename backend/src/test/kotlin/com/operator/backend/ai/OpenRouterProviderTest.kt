@@ -124,6 +124,35 @@ class OpenRouterProviderTest {
     }
 
     @Test
+    fun `a reply cut off while thinking says so instead of reading like an outage`() = runTest {
+        // The shape of the first live weather failure: 200, no content, finish_reason=length.
+        val truncated = provider {
+            respond(ByteReadChannel("""{"model":"openai/gpt-5.6-luna","choices":[{"message":{"role":"assistant","content":""},"finish_reason":"length"}]}"""), HttpStatusCode.OK, jsonHeaders)
+        }
+        val message = assertFailsWith<AIProviderException> { truncated.generate(AIRequest("m", "", "hi", maxOutputTokens = 300)) }.message!!
+        assertTrue(message.contains("300-token budget"), message)
+        assertTrue(message.contains("reasoning effort"), message)
+        truncated.close()
+    }
+
+    @Test
+    fun `reasoning is sent only when asked for, and never downloaded`() = runTest {
+        val bodies = mutableListOf<String>()
+        val p = provider { request ->
+            bodies += (request.body as io.ktor.http.content.TextContent).text
+            respond(ByteReadChannel(success), HttpStatusCode.OK, jsonHeaders)
+        }
+        p.generate(AIRequest("m", "", "hi"))
+        p.generate(AIRequest("m", "", "hi", reasoningEffort = "low"))
+        p.close()
+
+        assertNull(Json.parseToJsonElement(bodies[0]).jsonObject["reasoning"], "absent unless asked")
+        val reasoning = Json.parseToJsonElement(bodies[1]).jsonObject["reasoning"]!!.jsonObject
+        assertEquals("low", reasoning["effort"]!!.jsonPrimitive.content)
+        assertEquals("true", reasoning["exclude"]!!.jsonPrimitive.content)
+    }
+
+    @Test
     fun `unknown response fields are ignored and missing usage is null`() = runTest {
         val p = provider {
             respond(

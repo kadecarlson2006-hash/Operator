@@ -68,4 +68,14 @@ class OperatorConfigTest {
         assertFalse(OperatorConfig.fromMap(mapOf(OperatorConfig.Keys.WEB_SEARCH_ENABLED to "false")).webSearchEnabled)
         assertTrue(OperatorConfig.fromMap(mapOf(OperatorConfig.Keys.WEB_SEARCH_ENABLED to "true")).webSearchEnabled)
     }
+
+    @Test
+    fun `decision reasoning is low unless told otherwise`() {
+        fun effort(v: String?) = OperatorConfig.fromMap(mapOf(OperatorConfig.Keys.DECISION_REASONING_EFFORT to v)).decisionReasoningEffort
+        assertEquals("low", OperatorConfig().decisionReasoningEffort)
+        assertEquals("low", effort(null))
+        assertEquals("minimal", effort("Minimal"))
+        assertNull(effort("default"), "default leaves it to the model")
+        assertEquals("low", effort("turbo"), "an unknown value falls back rather than being sent")
+    }
 }

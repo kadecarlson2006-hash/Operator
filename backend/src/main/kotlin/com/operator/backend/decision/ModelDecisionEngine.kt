@@ -153,6 +153,7 @@ class ModelDecisionEngine(
                     systemPrompt = systemPrompt,
                     userContent = userContentFor(request),
                     maxOutputTokens = MAX_OUTPUT_TOKENS,
+                    reasoningEffort = config.decisionReasoningEffort,
                 ),
             ).text
         } catch (e: AIProviderException) {
@@ -273,7 +274,11 @@ class ModelDecisionEngine(
 
     companion object {
         const val DEFAULT_PROMPT_VERSION = "operator-decision-v1"
-        private const val MAX_OUTPUT_TOKENS = 300
+        // Room for a reasoning model to think and then answer. 300 was sized for the answer
+        // alone - a sentence or two of JSON - and a reasoning model spent all of it thinking on
+        // the first live weather question, returning nothing. Output is billed as used, so the
+        // headroom costs nothing unless it is needed.
+        private const val MAX_OUTPUT_TOKENS = 1_500
     }
 }
 

@@ -24,6 +24,13 @@ data class OperatorConfig(
     val fastModelId: String? = null,
     val deepModelId: String? = null,
     val decisionModelId: String? = null,
+    /**
+     * How hard the decision model may think: "minimal", "low", "medium", "high", or "default"
+     * to leave it to the model. Low by default. The first live run of the weather question
+     * came back empty: a reasoning model spent its whole output budget thinking and never
+     * answered. Low also keeps a spoken answer fast, which is the point of this path.
+     */
+    val decisionReasoningEffort: String? = "low",
     val visionModelId: String? = null,
     /** Embedding model for semantic memory retrieval (Milestone 7). */
     val embeddingModelId: String? = null,
@@ -99,6 +106,9 @@ data class OperatorConfig(
     }
 
     companion object {
+        /** The values OpenRouter accepts for reasoning effort. */
+        val REASONING_EFFORTS = setOf("none", "minimal", "low", "medium", "high", "xhigh")
+
         /**
          * Builds a config from a flat key/value map (e.g. BuildConfig fields, a .env file, or
          * system properties). Unknown keys are ignored; malformed numbers fall back to defaults.
@@ -116,6 +126,12 @@ data class OperatorConfig(
                 fastModelId = str(Keys.FAST_MODEL_ID),
                 deepModelId = str(Keys.DEEP_MODEL_ID),
                 decisionModelId = str(Keys.DECISION_MODEL_ID),
+                decisionReasoningEffort = when (val effort = str(Keys.DECISION_REASONING_EFFORT)?.lowercase()) {
+                    null -> defaults.decisionReasoningEffort
+                    "default" -> null
+                    in REASONING_EFFORTS -> effort
+                    else -> defaults.decisionReasoningEffort
+                },
                 visionModelId = str(Keys.VISION_MODEL_ID),
                 embeddingModelId = str(Keys.EMBEDDING_MODEL_ID),
                 webSearchEnabled = str(Keys.WEB_SEARCH_ENABLED)?.toBoolean() ?: defaults.webSearchEnabled,
@@ -150,6 +166,7 @@ data class OperatorConfig(
         const val FAST_MODEL_ID = "OPERATOR_FAST_MODEL_ID"
         const val DEEP_MODEL_ID = "OPERATOR_DEEP_MODEL_ID"
         const val DECISION_MODEL_ID = "OPERATOR_DECISION_MODEL_ID"
+        const val DECISION_REASONING_EFFORT = "OPERATOR_DECISION_REASONING_EFFORT"
         const val VISION_MODEL_ID = "OPERATOR_VISION_MODEL_ID"
         const val EMBEDDING_MODEL_ID = "OPERATOR_EMBEDDING_MODEL_ID"
         const val WEB_SEARCH_ENABLED = "OPERATOR_WEB_SEARCH"

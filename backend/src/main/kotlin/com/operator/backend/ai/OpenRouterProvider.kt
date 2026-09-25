@@ -58,6 +58,7 @@ class OpenRouterProvider(
             temperature = temperature,
             plugins = webSearch?.let { listOf(it) },
             provider = providerPreferences,
+            reasoning = request.reasoningEffort?.let { ReasoningOptions(effort = it) },
         )
         val startedAt = System.nanoTime()
         val response: HttpResponse = try {
@@ -84,7 +85,16 @@ class OpenRouterProvider(
             throw AIProviderException("OpenRouter returned an unreadable response: ${e.message}")
         }
         // A 200 can still carry an error envelope instead of choices.
-        val content = parsed.choices.firstOrNull()?.message?.content
+        val choice = parsed.choices.firstOrNull()
+        val content = choice?.message?.content
+        if (content.isNullOrBlank() && choice?.finishReason == "length") {
+            // A reasoning model that thinks past max_tokens returns a successful, empty reply.
+            // Said plainly, because the raw envelope reads like an outage and is not one.
+            throw AIProviderException(
+                "${parsed.model ?: request.modelId} used its whole ${request.maxOutputTokens ?: "default"}-token " +
+                    "budget before answering (finish_reason=length); raise the limit or lower reasoning effort",
+            )
+        }
         if (content.isNullOrBlank()) {
             throw AIProviderException(describeError(response.status, text).ifBlank { "OpenRouter returned no content" })
         }

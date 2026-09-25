@@ -91,6 +91,22 @@ data class ChatCompletionRequest(
      */
     val plugins: List<WebSearchOptions>? = null,
     val provider: ProviderPreferences? = null,
+    /** Absent unless the caller capped it. Models without reasoning ignore it. */
+    val reasoning: ReasoningOptions? = null,
+)
+
+/**
+ * OpenRouter's reasoning control, shape taken from `@openrouter/ai-sdk-provider` 3.1.0:
+ * `reasoning: { enabled?, exclude?, effort | max_tokens }`.
+ */
+@Serializable
+data class ReasoningOptions(
+    /** "xhigh", "high", "medium", "low", "minimal" or "none". */
+    val effort: String,
+    // Operator never shows the model's reasoning (ADR-009), so there is no reason to download
+    // it. @EncodeDefault for the same reason as the web plugin's id: encodeDefaults = false
+    // would otherwise drop it for equalling its default.
+    @EncodeDefault val exclude: Boolean = true,
 )
 
 @Serializable

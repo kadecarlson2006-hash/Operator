@@ -13,6 +13,12 @@ data class AIRequest(
     val systemPrompt: String,
     val userContent: String,
     val maxOutputTokens: Int? = null,
+    /**
+     * How hard a reasoning model may think before answering: "minimal", "low", "medium" or
+     * "high". Null leaves it to the model. Reasoning tokens count against [maxOutputTokens], so a
+     * model left to think freely can spend the whole budget and return nothing.
+     */
+    val reasoningEffort: String? = null,
 )
 
 data class AIResponse(
