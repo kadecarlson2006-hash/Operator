@@ -112,6 +112,12 @@ class ModelDecisionEngine(
         val invited = request.trigger != DecisionTrigger.AMBIENT
         val searched = invited && webSearch != null &&
             NeedsCurrentInformation.judge(question(request.recentTranscript).orEmpty())
+        // Before search is switched on, so the rewrite itself never searches.
+        val searchQuery = if (searched && config.searchQueryRewrite) {
+            question(request.recentTranscript)?.let { rewriteForSearch(it, modelId) }
+        } else {
+            null
+        }
         (provider as? OpenRouterProvider)?.webSearch = if (searched) webSearch else null
 
         val retrievalStartedAt = clock()
@@ -147,7 +153,16 @@ class ModelDecisionEngine(
         ).joinToString("\n\n")
             // When searching, the framing lives here instead of the user message: search builds its
             // query from the last user turn, and must see only what was asked (see userContentFor).
-            .let { if (searched) it + "\n\n" + framingFor(request, inSystemPrompt = true) else it }
+            .let {
+                if (!searched) {
+                    it
+                } else {
+                    // When the query was rewritten the model must still answer what was said, so
+                    // that goes here; the user message is then the query, for the search to use.
+                    val said = searchQuery?.let { question(request.recentTranscript) }
+                    it + "\n\n" + framingFor(request, question = said, inSystemPrompt = true)
+                }
+            }
 
         val modelStartedAt = clock()
         val raw = try {
@@ -155,7 +170,7 @@ class ModelDecisionEngine(
                 AIRequest(
                     modelId = modelId,
                     systemPrompt = systemPrompt,
-                    userContent = userContentFor(request, searched),
+                    userContent = userContentFor(request, searched, searchQuery),
                     maxOutputTokens = MAX_OUTPUT_TOKENS,
                     reasoningEffort = config.decisionReasoningEffort,
                 ),
@@ -199,6 +214,43 @@ class ModelDecisionEngine(
     }
 
     /**
+     * Turns what was said into something a search engine can use.
+     *
+     * People talk to Operator in shorthand. Live, "did you see the rams aaron donald isn't
+     * traveling to AUS with the rest of the team" searched twice and found nothing - the second
+     * time reading AUS as Austin, the airport - although ESPN had reported exactly that: Donald
+     * stayed home from the Melbourne opener. The words that suit a friend do not suit a search box.
+     *
+     * One extra call to the decision model, with minimal reasoning and no search, before the
+     * searched one. Any failure, or an answer that does not look like a query, falls back to the
+     * words as spoken: a worse search is better than none. The query is not logged - it is
+     * transcript, and transcript logging is minimal by default.
+     */
+    private suspend fun rewriteForSearch(asked: String, modelId: String): String? {
+        (provider as? OpenRouterProvider)?.webSearch = null
+        val today = java.time.Instant.ofEpochMilli(clock()).atZone(java.time.ZoneOffset.UTC).toLocalDate()
+        val startedAt = clock()
+        val raw = try {
+            provider.generate(
+                AIRequest(
+                    modelId = modelId,
+                    systemPrompt = SEARCH_QUERY_PROMPT.replace("{today}", today.toString()),
+                    userContent = asked,
+                    maxOutputTokens = SEARCH_QUERY_MAX_TOKENS,
+                    reasoningEffort = "minimal",
+                ),
+            ).text
+        } catch (e: AIProviderException) {
+            log.warn("Search query rewrite failed after {} ms, searching on the words as spoken: {}", clock() - startedAt, e.message)
+            return null
+        }
+        val query = raw.lineSequence().map { it.trim().trim('"', '\'', '`').trim() }.firstOrNull { it.isNotEmpty() }
+            ?.takeIf { it.length in 3..SEARCH_QUERY_MAX_CHARS && !it.startsWith("{") }
+        log.info("Search query rewritten in {} ms ({})", clock() - startedAt, if (query != null) "used" else "unusable, using the words as spoken")
+        return query
+    }
+
+    /**
      * The user message. When searching it is the question and nothing else.
      *
      * OpenRouter's web search builds its query from the last user turn. It used to read
@@ -209,9 +261,9 @@ class ModelDecisionEngine(
      * although ESPN had reported exactly that. The framing still reaches the model, from the end
      * of the system prompt; it just no longer reaches the search engine.
      */
-    private fun userContentFor(request: DecisionRequest, searched: Boolean): String {
+    private fun userContentFor(request: DecisionRequest, searched: Boolean, searchQuery: String? = null): String {
         val asked = question(request.recentTranscript)
-        if (searched && asked != null) return asked
+        if (searched && asked != null) return searchQuery ?: asked
         return framingFor(request, question = asked)
     }
 
@@ -237,7 +289,15 @@ class ModelDecisionEngine(
         }
 
         appendLine()
-        if (inSystemPrompt) appendLine("The user message is exactly what was said to you.")
+        if (inSystemPrompt) {
+            appendLine(
+                if (question != null) {
+                    "The user message is a web search query written from what was said. Answer what was said, from the search results."
+                } else {
+                    "The user message is exactly what was said to you."
+                },
+            )
+        }
         appendLine("Decide now. Reply with the JSON object only.")
     }
 
@@ -303,6 +363,17 @@ class ModelDecisionEngine(
         // the first live weather question, returning nothing. Output is billed as used, so the
         // headroom costs nothing unless it is needed.
         private const val MAX_OUTPUT_TOKENS = 1_500
+
+        private const val SEARCH_QUERY_MAX_TOKENS = 300
+        private const val SEARCH_QUERY_MAX_CHARS = 200
+        private val SEARCH_QUERY_PROMPT = """
+            Turn what someone said into one web search query that would find the answer, or the news
+            they are referring to. Today is {today}.
+            - Expand abbreviations and shorthand to what they most plausibly mean in context.
+            - Drop conversational filler such as "did you see", "I heard", "apparently", "hey".
+            - Keep every name. Add the place, date or season when it narrows the search.
+            Reply with the query only, on one line, under fifteen words. No quotes, no explanation.
+        """.trimIndent()
     }
 }
 

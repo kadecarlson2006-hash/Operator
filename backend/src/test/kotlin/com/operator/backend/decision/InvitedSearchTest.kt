@@ -78,7 +78,7 @@ class InvitedSearchTest {
     fun `a spoken weather question searches`(): Unit = runBlocking {
         val sent = mutableListOf<String>()
         engineWith(sent).decide(spoken("Someone: operator what's the weather in Salina today"))
-        assertTrue(searchedIn(sent.single()), "a question about today's weather must reach live search")
+        assertTrue(searchedIn(sent.last()), "a question about today's weather must reach live search")
     }
 
     @Test
@@ -87,7 +87,7 @@ class InvitedSearchTest {
         engineWith(sent).decide(
             spoken("Someone: operator did you see the Rams, Aaron Donald isn't traveling to Australia with the team"),
         )
-        assertTrue(searchedIn(sent.single()), "news about a team must reach live search")
+        assertTrue(searchedIn(sent.last()), "news about a team must reach live search")
     }
 
     @Test
@@ -97,7 +97,7 @@ class InvitedSearchTest {
         // been enabled and useless.
         val sent = mutableListOf<String>()
         engineWith(sent).decide(spoken("Someone: operator what's the weather in Salina today"))
-        val content = userMessage(sent.single())
+        val content = userMessage(sent.last())
         assertTrue(content.contains("weather in Salina", ignoreCase = true), "the question is missing: $content")
     }
 
@@ -105,7 +105,7 @@ class InvitedSearchTest {
     fun `the wake word is stripped so the query reads as a question`(): Unit = runBlocking {
         val sent = mutableListOf<String>()
         engineWith(sent).decide(spoken("Someone: operator what's the weather in Salina today"))
-        val content = userMessage(sent.single())
+        val content = userMessage(sent.last())
         assertFalse(
             content.contains("operator what", ignoreCase = true),
             "the address should not be part of the search query: $content",
@@ -143,7 +143,7 @@ class InvitedSearchTest {
                 """.trimIndent(),
             ),
         )
-        assertTrue(searchedIn(sent.single()), "the newest line is the question, and it needs looking up")
+        assertTrue(searchedIn(sent.last()), "the newest line is the question, and it needs looking up")
     }
 
     @Test
@@ -192,7 +192,7 @@ class InvitedSearchTest {
         val sent = mutableListOf<String>()
         engineWith(sent).decide(spoken("Someone: operator what's the weather in Salina today"))
 
-        val body = Json.parseToJsonElement(sent.single()).jsonObject
+        val body = Json.parseToJsonElement(sent.last()).jsonObject
         val reasoning = body["reasoning"]!!.jsonObject
         kotlin.test.assertEquals("low", reasoning["effort"]!!.jsonPrimitive.content)
         kotlin.test.assertEquals("true", reasoning["exclude"]!!.jsonPrimitive.content, "reasoning is never shown, so never downloaded")
@@ -207,7 +207,7 @@ class InvitedSearchTest {
         engineWith(sent).decide(spoken("Someone: operator did you see the rams aaron donald isn't traveling to AUS with the rest of the team"))
         kotlin.test.assertEquals(
             "did you see the rams aaron donald isn't traveling to AUS with the rest of the team",
-            userMessage(sent.single()),
+            userMessage(sent.last()),
         )
     }
 
@@ -215,7 +215,7 @@ class InvitedSearchTest {
     fun `the framing still reaches the model when searching`(): Unit = runBlocking {
         val sent = mutableListOf<String>()
         engineWith(sent).decide(spoken("Someone: operator what's the weather in Salina today"))
-        val system = Json.parseToJsonElement(sent.single()).jsonObject["messages"]!!.jsonArray
+        val system = Json.parseToJsonElement(sent.last()).jsonObject["messages"]!!.jsonArray
             .first().jsonObject["content"]!!.jsonPrimitive.content
         assertTrue(system.contains("Trigger: DIRECT_ADDRESS"), "who asked must not be lost")
         assertTrue(system.contains("Reply with the JSON object only"), "the output contract must not be lost")
@@ -227,5 +227,48 @@ class InvitedSearchTest {
         engineWith(sent).decide(spoken("Someone: operator say hello"))
         val content = userMessage(sent.single())
         assertTrue(content.contains("Trigger: DIRECT_ADDRESS") && content.contains("say hello"), content)
+    }
+
+    @Test
+    fun `shorthand is rewritten into a search query before searching`(): Unit = runBlocking {
+        // Live, "traveling to AUS" searched for Austin. The rewrite call has no search; the
+        // searched call carries the rewritten query, and the model is still told what was said.
+        val sent = mutableListOf<String>()
+        val provider = OpenRouterProvider(
+            apiKey = "k",
+            engine = MockEngine { request ->
+                val body = (request.body as io.ktor.http.content.TextContent).text
+                sent += body
+                val reply = if (searchedIn(body)) speaks else "Aaron Donald Rams not traveling to Australia Melbourne opener 2026"
+                respond(
+                    """{"model":"m","choices":[{"message":{"role":"assistant","content":${Json.encodeToString(kotlinx.serialization.json.JsonPrimitive.serializer(), kotlinx.serialization.json.JsonPrimitive(reply))}}}]}""",
+                    HttpStatusCode.OK,
+                    headersOf("Content-Type", "application/json"),
+                )
+            },
+        )
+        ModelDecisionEngine(
+            provider = provider,
+            policy = ConversationPolicy(0, 100, 0, 1_000),
+            prompts = PromptLibrary(promptDir()),
+            config = OperatorConfig(decisionModelId = "v/decide"),
+            webSearch = WebSearchOptions(maxResults = 3),
+        ).decide(spoken("Someone: operator did you see the rams aaron donald isn't traveling to AUS with the rest of the team"))
+
+        kotlin.test.assertEquals(2, sent.size, "one rewrite, one searched answer")
+        assertFalse(searchedIn(sent[0]), "the rewrite must not itself search")
+        assertTrue(searchedIn(sent[1]))
+        kotlin.test.assertEquals("Aaron Donald Rams not traveling to Australia Melbourne opener 2026", userMessage(sent[1]))
+        val system = Json.parseToJsonElement(sent[1]).jsonObject["messages"]!!.jsonArray
+            .first().jsonObject["content"]!!.jsonPrimitive.content
+        assertTrue(system.contains("isn't traveling to AUS"), "the model must still answer what was actually said")
+    }
+
+    @Test
+    fun `an unusable rewrite falls back to the words as spoken`(): Unit = runBlocking {
+        // engineWith answers every call with decision JSON, which is not a query.
+        val sent = mutableListOf<String>()
+        engineWith(sent).decide(spoken("Someone: operator what's the weather in Salina today"))
+        kotlin.test.assertEquals("what's the weather in Salina today", userMessage(sent.last()))
     }
 }

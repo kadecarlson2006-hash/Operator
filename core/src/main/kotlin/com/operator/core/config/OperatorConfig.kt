@@ -50,6 +50,12 @@ data class OperatorConfig(
      * Set OPERATOR_WEB_SEARCH=false to go back to answering from recollection only.
      */
     val webSearchEnabled: Boolean = true,
+    /**
+     * Rewrite what was said into a search query before searching. On by default: people talk in
+     * shorthand, and live, "the rams ... traveling to AUS" searched for Austin and found nothing.
+     * Costs one short extra call per searched question.
+     */
+    val searchQueryRewrite: Boolean = true,
     /** How many results to pull in. More context, more cost. */
     val webSearchMaxResults: Int = 3,
     /**
@@ -135,6 +141,7 @@ data class OperatorConfig(
                 visionModelId = str(Keys.VISION_MODEL_ID),
                 embeddingModelId = str(Keys.EMBEDDING_MODEL_ID),
                 webSearchEnabled = str(Keys.WEB_SEARCH_ENABLED)?.toBoolean() ?: defaults.webSearchEnabled,
+                searchQueryRewrite = str(Keys.SEARCH_QUERY_REWRITE)?.toBoolean() ?: defaults.searchQueryRewrite,
                 webSearchMaxResults = str(Keys.WEB_SEARCH_MAX_RESULTS)?.toIntOrNull()?.coerceIn(1, 10)
                     ?: defaults.webSearchMaxResults,
                 zeroDataRetention = str(Keys.ZERO_DATA_RETENTION)?.toBoolean() ?: defaults.zeroDataRetention,
@@ -170,6 +177,7 @@ data class OperatorConfig(
         const val VISION_MODEL_ID = "OPERATOR_VISION_MODEL_ID"
         const val EMBEDDING_MODEL_ID = "OPERATOR_EMBEDDING_MODEL_ID"
         const val WEB_SEARCH_ENABLED = "OPERATOR_WEB_SEARCH"
+        const val SEARCH_QUERY_REWRITE = "OPERATOR_SEARCH_QUERY_REWRITE"
         const val WEB_SEARCH_MAX_RESULTS = "OPERATOR_WEB_SEARCH_MAX_RESULTS"
         const val ZERO_DATA_RETENTION = "OPERATOR_ZERO_DATA_RETENTION"
         const val PROVIDER_SORT = "OPERATOR_PROVIDER_SORT"
