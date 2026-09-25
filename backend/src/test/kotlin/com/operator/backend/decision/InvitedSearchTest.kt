@@ -161,4 +161,27 @@ class InvitedSearchTest {
         engineWith(sent).decide(spoken("Someone: operator what does ephemeral mean"))
         assertFalse(searchedIn(sent.single()), "a settled fact needs no search")
     }
+
+    @Test
+    fun `a search that fails is still reported as a search`(): Unit = runBlocking {
+        // The first live run of the weather question came back searched=false, modelMillis=0
+        // after thirty seconds - because the failure path reported nothing it had attempted. A
+        // failed search and a question the gate never searched for must not look the same.
+        val failing = ModelDecisionEngine(
+            provider = OpenRouterProvider(
+                apiKey = "k",
+                engine = MockEngine { respond("""{"error":{"message":"upstream timed out"}}""", HttpStatusCode.BadGateway, headersOf("Content-Type", "application/json")) },
+            ),
+            policy = ConversationPolicy(0, 100, 0, 1_000),
+            prompts = PromptLibrary(promptDir()),
+            config = OperatorConfig(decisionModelId = "v/decide"),
+            webSearch = WebSearchOptions(maxResults = 3),
+        )
+
+        failing.decide(spoken("Someone: operator what's the weather in Salina today"))
+
+        val outcome = failing.lastOutcome
+        kotlin.test.assertEquals("MODEL_UNAVAILABLE", outcome.reasonCode)
+        assertTrue(outcome.searched, "the search was attempted and must be reported")
+    }
 }

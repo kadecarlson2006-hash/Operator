@@ -156,14 +156,23 @@ class ModelDecisionEngine(
                 ),
             ).text
         } catch (e: AIProviderException) {
-            log.warn("Decision model unavailable, staying silent: {}", e.message)
-            lastOutcome = DecisionOutcome(modelCalled = true, modelId = modelId, reasonCode = "MODEL_UNAVAILABLE", latencyMillis = clock() - startedAt)
+            log.warn("Decision model unavailable, staying silent (searched={}, after {} ms): {}", searched, clock() - modelStartedAt, e.message)
+            // Report what was attempted even though it failed. Leaving these at zero made a failed
+            // search indistinguishable from a question the gate never searched for, which is the
+            // one distinction a live test of search has to be able to see.
+            lastOutcome = DecisionOutcome(
+                modelCalled = true, modelId = modelId, reasonCode = "MODEL_UNAVAILABLE", latencyMillis = clock() - startedAt,
+                searched = searched, retrievalMillis = retrievalMillis, modelMillis = clock() - modelStartedAt,
+            )
             return ResponseDecision.silence("MODEL_UNAVAILABLE")
         }
 
         val parsed = parse(raw)
         if (parsed == null) {
-            lastOutcome = DecisionOutcome(modelCalled = true, modelId = modelId, reasonCode = "UNREADABLE_DECISION", latencyMillis = clock() - startedAt)
+            lastOutcome = DecisionOutcome(
+                modelCalled = true, modelId = modelId, reasonCode = "UNREADABLE_DECISION", latencyMillis = clock() - startedAt,
+                searched = searched, retrievalMillis = retrievalMillis, modelMillis = clock() - modelStartedAt,
+            )
             return ResponseDecision.silence("UNREADABLE_DECISION")
         }
 
