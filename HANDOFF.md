@@ -93,6 +93,21 @@ Backend on `7d14345`, decision model `openai/gpt-5.6-luna`, ZDR on, sort latency
    on a freshly started backend - invited calls made just before it use the decision budget and
    the ambient cases come back RATE_LIMITED. The 2026-09-06 baseline was copied aside.
 
+**Part B - the phone** (now an SM-S948U "S26 Ultra", Android 16, at 192.168.1.218; PC still
+192.168.1.215, matching `local.properties`)
+
+5. **Install: PASS.** `:app:installDebug` with `:glasses-meta` compiled in; the phone reaches
+   `/usage` over Wi-Fi (200). First cable was charge-only - Windows saw no device at all.
+6. **Stage 4 hearing:**
+   - Silence, 30 s: **PASS** - 0 utterances, 0 uploads. But **a phone vibration opens the gate
+     every time** (twice per buzz, 2 uploads each time, even under Do Not Disturb). Not fixed;
+     test with the phone muted until it is.
+   - Phone mic: first try **FAIL** - one sentence became three utterances ("the blue package" /
+     "arrives" / "friday at 7:30"): the gate closed after 240 ms of quiet. **Fixed `7728e94`**
+     (700 ms hangover in ListenController). Retest: one line, exact, transcribed in 0.58s.
+   - Glasses mic (SCO): one utterance, "blue package arrives friday at 7:30" - the first word lost,
+     otherwise exact; transcribed in 1.7s. Onset clipping on SCO, likely risk 36.
+
 ## Where testing got to
 
 Stages 2 and 3, M1/M2 from stage 1, and the backend half of stage 6 are done. Stage 4 is

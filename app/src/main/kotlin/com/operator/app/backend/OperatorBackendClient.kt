@@ -205,6 +205,12 @@ class OperatorBackendClient(private val baseUrl: String?) : OperatorBackend, Ope
 
     private val client by lazy {
         HttpClient(OkHttp) {
+            // OkHttp's default 10 s read timeout is shorter than a searched answer: live, "how are
+            // you today" searched, and the phone gave up at 10 s and reported the backend
+            // unreachable while it was still answering (9.4 s on retry). Just above the backend's
+            // own 60 s cap on a model call, so the backend bounds the wait and its error reaches
+            // the screen rather than a false "unreachable".
+            engine { config { readTimeout(70, java.util.concurrent.TimeUnit.SECONDS) } }
             expectSuccess = false
             install(ContentNegotiation) { json(json) }
         }
