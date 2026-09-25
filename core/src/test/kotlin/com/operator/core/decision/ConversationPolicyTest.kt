@@ -252,6 +252,16 @@ class ConversationPolicyTest {
     }
 
     @Test
+    fun `decimal points are not sentence ends`() {
+        // Live, a one-sentence Fed answer was suppressed as TOO_LONG for its numbers.
+        val (p, _) = policy()
+        val numbers = speaking("No - the Fed raised rates by 0.25 points on September 16, 2026, to 3.75%-4.00%.")
+        assertTrue(p.review(numbers, ambient()).shouldSpeak, "one sentence with numbers in it is not too long")
+        val fourWithNumbers = speaking("Apple is at 335.42. It closed at 335.92. It fell 0.5%. That is small.")
+        assertEquals("TOO_LONG", p.review(fourWithNumbers, ambient()).reasonCode)
+    }
+
+    @Test
     fun `a speech longer than three sentences is suppressed`() {
         val (p, _) = policy()
         val long = speaking("One thing. Two things. Three things. Four things.")

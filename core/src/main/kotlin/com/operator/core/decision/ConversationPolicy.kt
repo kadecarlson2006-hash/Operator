@@ -215,9 +215,15 @@ class ConversationPolicy(
         fun scaledCount(count: Int, factor: Float): Int =
             (count * factor).toInt().coerceAtLeast(if (count > 0) 1 else 0)
 
-        /** Terminal punctuation, ignoring a trailing one so "Yes." counts as one sentence. */
+        /**
+         * Terminal punctuation, ignoring a trailing one so "Yes." counts as one sentence. Only
+         * punctuation followed by a space ends a sentence: live, "raised rates by 0.25 points, to
+         * 3.75%-4.00%" counted as four and a one-sentence answer was suppressed as TOO_LONG.
+         */
         fun sentenceCount(text: String): Int =
-            text.trim().trimEnd('.', '!', '?').count { it == '.' || it == '!' || it == '?' } + 1
+            SENTENCE_END.findAll(text.trim().trimEnd('.', '!', '?')).count() + 1
+
+        private val SENTENCE_END = Regex("""[.!?]+(?=\s)""")
 
         /**
          * Near-repetition, not exact: a model asked not to repeat itself will happily reword.
