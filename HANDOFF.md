@@ -122,6 +122,17 @@ Backend on `7d14345`, decision model `openai/gpt-5.6-luna`, ZDR on, sort latency
      OUTPUT to system default.
    Driven over adb (`input tap` + `uiautomator dump`, timing from `dumpsys audio` focus and
    recording events), which needs no hands and gives exact times.
+8. **The goal test: PASS, both sentences, spoken to the glasses** (mode ACTIVE, Active Operator
+   ON - spoken questions only reach /decide while it is on; glasses SCO in and out):
+   - Weather: SOURCE live web search; BREAKDOWN 2 ms rewrite / 0 ms memory / 5370 ms model
+     (5.4 s); said "In Salina, Kansas, today-Friday, September 25-will be mild, with showers and
+     possible thunderstorms, a high near 79F, and a low around 66F." Heard in the glasses.
+   - Rams: SOURCE live web search; BREAKDOWN 2288 ms rewrite / 0 ms memory / 4758 ms model
+     (7.0 s); said "Yes-the Rams confirmed on September 8, 2026, that Aaron Donald would not travel
+     to Melbourne for their Week 1 game against the 49ers, giving him more time to ramp up after
+     coming out of retirement." One utterance (the hangover fix held), heard in the glasses.
+   - No URL or asterisks in either spoken answer. Add ~0.7 s pause + 2.5 s settle + transcription
+     (~2 s on SCO) to the decide time for what the user waits.
 
 ## Where testing got to
 
