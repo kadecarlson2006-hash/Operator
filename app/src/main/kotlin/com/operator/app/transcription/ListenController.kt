@@ -112,7 +112,7 @@ class ListenController(
         listenJob = scope.launch {
             // Passed explicitly rather than inherited: this is the one place that knows the frame
             // size, so it is the only place the milliseconds-to-frames arithmetic can be checked.
-            val detector = VoiceActivityDetector(calibrationFrames = CALIBRATION_FRAMES)
+            val detector = VoiceActivityDetector(calibrationFrames = CALIBRATION_FRAMES, hangoverFrames = HANGOVER_FRAMES)
             val segmenter = SpeechSegmenter(
                 sampleRateHz = SAMPLE_RATE_HZ,
                 frameSamples = FRAME_SAMPLES,
@@ -241,6 +241,15 @@ class ListenController(
 
         // Int arithmetic throughout: a const val may not contain a call such as toInt().
         const val CALIBRATION_FRAMES = CALIBRATION_MILLIS / (FRAME_SAMPLES * 1_000 / SAMPLE_RATE_HZ)
+
+        /**
+         * How long a pause may last inside one utterance. The detector's default is 240 ms, and
+         * live "The blue package arrives Friday at seven thirty." arrived as three utterances -
+         * "the blue package" / "arrives" / "friday at 7:30" - because ordinary pauses between
+         * phrases run longer than that. Costs the same again in wait before each upload.
+         */
+        const val HANGOVER_MILLIS = 700
+        const val HANGOVER_FRAMES = HANGOVER_MILLIS / (FRAME_SAMPLES * 1_000 / SAMPLE_RATE_HZ)
         const val MAX_SEGMENT_MILLIS = 20_000L
     }
 }

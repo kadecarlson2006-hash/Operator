@@ -98,7 +98,8 @@ class ListenControllerTest {
     private suspend fun FakeMic.speakOnce(speechFrames: Int = 30) {
         repeat(ListenController.CALIBRATION_FRAMES + 5) { frames.send(ShortArray(FRAME)) }
         repeat(speechFrames) { frames.send(ShortArray(FRAME) { i -> (sin(2 * PI * 300 * i / 16000.0) * 0.4 * Short.MAX_VALUE).toInt().toShort() }) }
-        repeat(20) { frames.send(ShortArray(FRAME)) }
+        // Past the hangover, read from the controller for the same reason as calibration above.
+        repeat(ListenController.HANGOVER_FRAMES + 5) { frames.send(ShortArray(FRAME)) }
     }
 
     @Test
