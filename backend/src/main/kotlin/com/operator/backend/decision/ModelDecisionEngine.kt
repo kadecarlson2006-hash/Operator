@@ -67,6 +67,11 @@ class ModelDecisionEngine(
     private val webSearch: WebSearchOptions? = null,
     private val promptVersion: String = DEFAULT_PROMPT_VERSION,
     private val clock: () -> Long = System::currentTimeMillis,
+    /**
+     * Where "today" is. The backend runs beside the user, so its zone is theirs. UTC made a
+     * weather question asked at 11pm on a Thursday in Kansas come back with Friday's forecast.
+     */
+    private val zone: java.time.ZoneId = java.time.ZoneId.systemDefault(),
 ) : ResponseDecisionEngine {
 
     private val log = LoggerFactory.getLogger("operator-decision")
@@ -228,13 +233,12 @@ class ModelDecisionEngine(
      */
     private suspend fun rewriteForSearch(asked: String, modelId: String): String? {
         (provider as? OpenRouterProvider)?.webSearch = null
-        val today = java.time.Instant.ofEpochMilli(clock()).atZone(java.time.ZoneOffset.UTC).toLocalDate()
         val startedAt = clock()
         val raw = try {
             provider.generate(
                 AIRequest(
                     modelId = modelId,
-                    systemPrompt = SEARCH_QUERY_PROMPT.replace("{today}", today.toString()),
+                    systemPrompt = SEARCH_QUERY_PROMPT.replace("{today}", today()),
                     userContent = asked,
                     maxOutputTokens = SEARCH_QUERY_MAX_TOKENS,
                     reasoningEffort = "minimal",
@@ -249,6 +253,11 @@ class ModelDecisionEngine(
         log.info("Search query rewritten in {} ms ({})", clock() - startedAt, if (query != null) "used" else "unusable, using the words as spoken")
         return query
     }
+
+    /** Today's date where the user is, spelled out so "today" and "tonight" resolve correctly. */
+    private fun today(): String =
+        java.time.Instant.ofEpochMilli(clock()).atZone(zone).toLocalDate()
+            .format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy", java.util.Locale.US))
 
     /**
      * The user message. When searching it is the question and nothing else.
@@ -290,6 +299,9 @@ class ModelDecisionEngine(
 
         appendLine()
         if (inSystemPrompt) {
+            // Search results carry their own dates and the model has no clock; without this it
+            // took "today" from whichever forecast day the results happened to lead with.
+            appendLine("Today is ${today()}, where the user is.")
             appendLine(
                 if (question != null) {
                     "The user message is a web search query written from what was said. Answer what was said, from the search results."

@@ -271,4 +271,40 @@ class InvitedSearchTest {
         engineWith(sent).decide(spoken("Someone: operator what's the weather in Salina today"))
         kotlin.test.assertEquals("what's the weather in Salina today", userMessage(sent.last()))
     }
+
+    @Test
+    fun `today is the user's date, not UTC's`(): Unit = runBlocking {
+        // Live at 11pm on Thursday in Kansas, UTC had already reached Friday, and "the weather in
+        // Salina today" came back with Friday's forecast.
+        val sent = mutableListOf<String>()
+        val provider = OpenRouterProvider(
+            apiKey = "k",
+            engine = MockEngine { request ->
+                val body = (request.body as io.ktor.http.content.TextContent).text
+                sent += body
+                val reply = if (searchedIn(body)) speaks else "Salina Kansas weather today"
+                respond(
+                    """{"model":"m","choices":[{"message":{"role":"assistant","content":${Json.encodeToString(kotlinx.serialization.json.JsonPrimitive.serializer(), kotlinx.serialization.json.JsonPrimitive(reply))}}}]}""",
+                    HttpStatusCode.OK,
+                    headersOf("Content-Type", "application/json"),
+                )
+            },
+        )
+        ModelDecisionEngine(
+            provider = provider,
+            policy = ConversationPolicy(0, 100, 0, 1_000),
+            prompts = PromptLibrary(promptDir()),
+            config = OperatorConfig(decisionModelId = "v/decide"),
+            webSearch = WebSearchOptions(maxResults = 3),
+            clock = { java.time.Instant.parse("2026-09-25T04:04:00Z").toEpochMilli() },
+            zone = java.time.ZoneId.of("America/Chicago"),
+        ).decide(spoken("Someone: operator what's the weather in Salina today"))
+
+        kotlin.test.assertEquals(2, sent.size, "one rewrite, one searched answer")
+        sent.forEach { body ->
+            val system = Json.parseToJsonElement(body).jsonObject["messages"]!!.jsonArray
+                .first().jsonObject["content"]!!.jsonPrimitive.content
+            assertTrue(system.contains("Thursday, September 24, 2026"), system)
+        }
+    }
 }
