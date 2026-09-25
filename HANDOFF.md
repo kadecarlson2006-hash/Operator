@@ -63,6 +63,36 @@ off 7 of 8 at minimal and 5 of 8 at low, paying the wait and then searching "AUS
 raised to 3.5s (`OPERATOR_SEARCH_REWRITE_TIMEOUT_MS`). The user's .env is at effort `low` for now;
 re-measure Rams at `minimal` with the new cap before moving it back.
 
+## Test run 2026-09-25 - results (running log)
+
+Backend on `7d14345`, decision model `openai/gpt-5.6-luna`, ZDR on, sort latency. Times are the
+`/decide` latency.
+
+**Part A - backend only**
+
+1. **Rams, minimal vs low (final prompt, 3.5s rewrite cap):** minimal 8/8 correct, avg 6.8s;
+   low 14/16, avg 7.7s. `.env` set to `OPERATOR_SEARCH_REASONING_EFFORT=minimal`.
+2. **8 more runs each on final settings:** Rams 8/8 correct, avg 6.8s. Weather 8/8 searched and
+   answered from the forecast, avg 4.9s - one run gave a high of 87F where the other seven said
+   76-79F (probably a different source).
+3. **Other current questions** (all DIRECT_ADDRESS, all searched=true):
+   | Question | Time | Answer | Checked |
+   |---|---|---|---|
+   | who won Thursday night football last night | 4.3-7.5s | Falcons beat Packers 35-14 | matchup right; score not independently confirmed |
+   | what's Apple stock trading at | 4.3s | closed $335.92 Sept 24, ~$335.42 overnight | not checked |
+   | who's the Chiefs quarterback | 5.0-8.9s | Mahomes starts, Fields backup | right |
+   | weather tomorrow in Salina | 5.2-7.3s | Sat Sept 26, high ~83F, 25% rain | plausible |
+   | did the Fed cut rates this month | 4.8-6.7s | No - raised 0.25 on Sept 16 to 3.75-4.00% | right (CNBC) |
+   **Fixed `3cfa644`:** the Fed answer was suppressed as TOO_LONG - `sentenceCount` counted every
+   "." so "0.25" and "3.75%-4.00%" made one sentence four. After the fix it spoke 3 of 3.
+4. **Drill** - ambient spoke **0 of 4** before, **0 of 4** after (`drill-baseline.csv`,
+   `drill-after.csv`); grounded invoice spoke both times, invited both answered. Fixed in the drill
+   itself: its FREE group still expected STANDBY to be refused free, which stopped being true with
+   ADR-050 (`192dc55`); on a clean backend that row made a paid call and blocked the first ambient
+   case (DECIDED_RECENTLY), so only 3 of 4 were really tested. The row is gone. Also: run the drill
+   on a freshly started backend - invited calls made just before it use the decision budget and
+   the ambient cases come back RATE_LIMITED. The 2026-09-06 baseline was copied aside.
+
 ## Where testing got to
 
 Stages 2 and 3, M1/M2 from stage 1, and the backend half of stage 6 are done. Stage 4 is

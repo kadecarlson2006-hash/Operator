@@ -103,7 +103,8 @@ $free = @(
     @{ name = "muted";                 body = @{ trigger = "AMBIENT"; transcript = $chitchat; muted = $true } }
     @{ name = "mode OFF";              body = @{ trigger = "AMBIENT"; transcript = $chitchat; mode = "OFF" } }
     @{ name = "mode QUIET (ambient)";  body = @{ trigger = "AMBIENT"; transcript = $chitchat; mode = "QUIET" } }
-    @{ name = "mode STANDBY (ambient)";body = @{ trigger = "AMBIENT"; transcript = $chitchat; mode = "STANDBY" } }
+    # No STANDBY row: since ADR-050 (192dc55) STANDBY may volunteer, so it reaches the model. Here
+    # it spent the decision interval and the first ambient case was refused DECIDED_RECENTLY.
     @{ name = "empty transcript";      body = @{ trigger = "AMBIENT"; transcript = @() } }
     @{ name = "muted + direct address";body = @{ trigger = "DIRECT_ADDRESS"; transcript = $chitchat; muted = $true } }
 )
