@@ -57,6 +57,12 @@ it), is abandoned after 2s, and searched answers use `OPERATOR_SEARCH_REASONING_
 and the panel's BREAKDOWN shows the same. To verify: run each sentence ~8 times, compare time and
 accuracy to 8.4s / 6.8s and Rams 7-of-8. If accuracy drops, set the effort back to `low`.
 
+Measured (16 runs a sentence): weather faster and right every time, rewrite skipped. Rams worse at
+minimal - but the 2s rewrite cap was the cause, not the effort: rewrites take 1-3s, and the cap cut
+off 7 of 8 at minimal and 5 of 8 at low, paying the wait and then searching "AUS" as spoken. Cap
+raised to 3.5s (`OPERATOR_SEARCH_REWRITE_TIMEOUT_MS`). The user's .env is at effort `low` for now;
+re-measure Rams at `minimal` with the new cap before moving it back.
+
 ## Where testing got to
 
 Stages 2 and 3, M1/M2 from stage 1, and the backend half of stage 6 are done. Stage 4 is

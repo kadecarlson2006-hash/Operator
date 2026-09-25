@@ -255,9 +255,10 @@ class ModelDecisionEngine(
         (provider as? OpenRouterProvider)?.webSearch = null
         val startedAt = clock()
         // Capped: past this the rewrite has cost more than it can save, and the words as spoken
-        // are searched instead of waiting for it.
+        // are searched instead of waiting for it. Too tight a cap is worse than none - it pays
+        // the wait and still searches the shorthand (see searchRewriteTimeoutMillis).
         val raw = try {
-            kotlinx.coroutines.withTimeoutOrNull(SEARCH_QUERY_TIMEOUT_MS) {
+            kotlinx.coroutines.withTimeoutOrNull(config.searchRewriteTimeoutMillis) {
                 provider.generate(
                     AIRequest(
                         modelId = modelId,
@@ -273,7 +274,7 @@ class ModelDecisionEngine(
             return null
         }
         if (raw == null) {
-            log.info("Search query rewrite passed {} ms, searching on the words as spoken", SEARCH_QUERY_TIMEOUT_MS)
+            log.info("Search query rewrite passed {} ms, searching on the words as spoken", config.searchRewriteTimeoutMillis)
             return null
         }
         val query = raw.lineSequence().map { it.trim().trim('"', '\'', '`').trim() }.firstOrNull { it.isNotEmpty() }
@@ -436,7 +437,6 @@ class ModelDecisionEngine(
 
         private const val SEARCH_QUERY_MAX_TOKENS = 300
         private const val SEARCH_QUERY_MAX_CHARS = 200
-        private const val SEARCH_QUERY_TIMEOUT_MS = 2_000L
         private val SEARCH_QUERY_PROMPT = """
             Turn what someone said into one web search query that would find the answer, or the news
             they are referring to. Today is {today}.

@@ -415,11 +415,11 @@ class InvitedSearchTest {
         val took = System.currentTimeMillis() - started
 
         assertTrue(decision.shouldSpeak, "the answer still arrives")
-        assertTrue(took < 5_000, "waited $took ms; the rewrite should be cut off at about two seconds")
+        assertTrue(took < 6_000, "waited $took ms; the rewrite should be cut off at about 3.5 seconds")
         kotlin.test.assertEquals(
             "did you see the rams aaron donald isn't traveling to AUS with the rest of the team",
             userMessage(sent.last()),
         )
-        assertTrue(engine.lastOutcome.rewriteMillis in 1_500..4_000, "rewrite time is reported: ${engine.lastOutcome.rewriteMillis}")
+        assertTrue(engine.lastOutcome.rewriteMillis in 3_000..5_500, "rewrite time is reported: ${engine.lastOutcome.rewriteMillis}")
     }
 }

@@ -51,6 +51,7 @@ data class BackendConfig(
         // nobody can confirm took effect, and both of these change what leaves this machine.
         "webSearch" to operator.webSearchEnabled.toString(),
         "searchQueryRewrite" to operator.searchQueryRewrite.toString(),
+        "searchRewriteTimeoutMs" to operator.searchRewriteTimeoutMillis.toString(),
         "decisionReasoning" to (operator.decisionReasoningEffort ?: "model default"),
         "searchReasoning" to (operator.searchReasoningEffort ?: "model default"),
         "zeroDataRetention" to operator.zeroDataRetention.toString(),

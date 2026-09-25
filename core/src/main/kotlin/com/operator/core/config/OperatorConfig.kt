@@ -62,6 +62,12 @@ data class OperatorConfig(
      * Costs one short extra call per searched question.
      */
     val searchQueryRewrite: Boolean = true,
+    /**
+     * How long the rewrite may take before the words as spoken are searched instead. Measured live
+     * it took 1-3s; a 2s cap cut off 7 of 8 Rams rewrites, wasting the two seconds and then
+     * searching "AUS" as spoken - which is how "Austin" came back. Clamped to 0.5-10s.
+     */
+    val searchRewriteTimeoutMillis: Long = 3_500,
     /** How many results to pull in. More context, more cost. */
     val webSearchMaxResults: Int = 3,
     /**
@@ -154,6 +160,8 @@ data class OperatorConfig(
                 embeddingModelId = str(Keys.EMBEDDING_MODEL_ID),
                 webSearchEnabled = str(Keys.WEB_SEARCH_ENABLED)?.toBoolean() ?: defaults.webSearchEnabled,
                 searchQueryRewrite = str(Keys.SEARCH_QUERY_REWRITE)?.toBoolean() ?: defaults.searchQueryRewrite,
+                searchRewriteTimeoutMillis = str(Keys.SEARCH_REWRITE_TIMEOUT_MS)?.toLongOrNull()?.coerceIn(500, 10_000)
+                    ?: defaults.searchRewriteTimeoutMillis,
                 webSearchMaxResults = str(Keys.WEB_SEARCH_MAX_RESULTS)?.toIntOrNull()?.coerceIn(1, 10)
                     ?: defaults.webSearchMaxResults,
                 zeroDataRetention = str(Keys.ZERO_DATA_RETENTION)?.toBoolean() ?: defaults.zeroDataRetention,
@@ -191,6 +199,7 @@ data class OperatorConfig(
         const val EMBEDDING_MODEL_ID = "OPERATOR_EMBEDDING_MODEL_ID"
         const val WEB_SEARCH_ENABLED = "OPERATOR_WEB_SEARCH"
         const val SEARCH_QUERY_REWRITE = "OPERATOR_SEARCH_QUERY_REWRITE"
+        const val SEARCH_REWRITE_TIMEOUT_MS = "OPERATOR_SEARCH_REWRITE_TIMEOUT_MS"
         const val WEB_SEARCH_MAX_RESULTS = "OPERATOR_WEB_SEARCH_MAX_RESULTS"
         const val ZERO_DATA_RETENTION = "OPERATOR_ZERO_DATA_RETENTION"
         const val PROVIDER_SORT = "OPERATOR_PROVIDER_SORT"

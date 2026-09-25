@@ -87,4 +87,14 @@ class OperatorConfigTest {
         assertNull(effort("default"))
         assertEquals("minimal", effort("fast please"))
     }
+
+    @Test
+    fun `the rewrite gets long enough to finish`() {
+        // Live it took 1-3s; a 2s cap cut off 7 of 8.
+        fun timeout(v: String?) = OperatorConfig.fromMap(mapOf(OperatorConfig.Keys.SEARCH_REWRITE_TIMEOUT_MS to v)).searchRewriteTimeoutMillis
+        assertEquals(3_500L, OperatorConfig().searchRewriteTimeoutMillis)
+        assertEquals(5_000L, timeout("5000"))
+        assertEquals(500L, timeout("10"), "clamped: zero would never let it run")
+        assertEquals(3_500L, timeout("soon"))
+    }
 }
