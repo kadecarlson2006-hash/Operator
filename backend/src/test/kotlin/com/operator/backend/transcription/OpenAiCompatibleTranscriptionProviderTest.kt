@@ -155,6 +155,32 @@ class OpenAiCompatibleTranscriptionProviderTest {
         assertFailsWith<IllegalArgumentException> { p.transcribe(PcmClip(ShortArray(0), 16_000, 1)) }
         assertTrue(!called, "no network call should be made for an empty clip")
     }
+
+    @Test
+    fun `a stalled request is tried once more`(): Unit = runBlocking {
+        // Live, two requests stalled upstream until the timeout and three utterances queued behind
+        // them were dropped. The second attempt is the one that normally gets through.
+        var calls = 0
+        val p = provider {
+            calls++
+            if (calls == 1) throw java.io.IOException("Request timeout has expired")
+            respond("""{"text":"arrives friday"}""", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+        }
+        assertEquals("arrives friday", p.transcribe(clip()).text)
+        assertEquals(2, calls)
+    }
+
+    @Test
+    fun `a request that never answers fails after two attempts`(): Unit = runBlocking {
+        var calls = 0
+        val p = provider {
+            calls++
+            throw java.io.IOException("Request timeout has expired")
+        }
+        val e = assertFailsWith<AIProviderException> { p.transcribe(clip()) }
+        assertTrue(e.retryable)
+        assertEquals(2, calls, "one retry, not a loop")
+    }
 }
 
 /** Renders an outgoing multipart body to text so tests can assert on the parts it contains. */
