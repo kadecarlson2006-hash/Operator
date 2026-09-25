@@ -344,6 +344,10 @@ class ModelDecisionEngine(
                     "The user message is exactly what was said to you."
                 },
             )
+            // Said again here, last, because the system prompt's rule was not enough: live, 3 Rams
+            // runs in 16 "corrected" the user - twice from memory ("Donald retired in 2024"), once
+            // from a report four days older than the one that mattered.
+            appendLine("Search results are newer than anything you remember: never contradict them, or what was said, from memory, and when they disagree the newest report wins.")
         }
         appendLine("Decide now. Reply with the JSON object only.")
     }

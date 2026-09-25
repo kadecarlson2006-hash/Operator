@@ -220,6 +220,7 @@ class InvitedSearchTest {
             .first().jsonObject["content"]!!.jsonPrimitive.content
         assertTrue(system.contains("Trigger: DIRECT_ADDRESS"), "who asked must not be lost")
         assertTrue(system.contains("Reply with the JSON object only"), "the output contract must not be lost")
+        assertTrue(system.contains("never contradict them, or what was said, from memory"), "search results must outrank memory")
     }
 
     @Test
