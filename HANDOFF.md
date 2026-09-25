@@ -133,6 +133,24 @@ Backend on `7d14345`, decision model `openai/gpt-5.6-luna`, ZDR on, sort latency
      coming out of retirement." One utterance (the hangover fix held), heard in the glasses.
    - No URL or asterisks in either spoken answer. Add ~0.7 s pause + 2.5 s settle + transcription
      (~2 s on SCO) to the decide time for what the user waits.
+9. **Stage 6 button checks** (ANYTHING TO SAY? sends AMBIENT, so the phone's rules apply):
+   - After talking: model call, SILENT. **PASS**.
+   - Second press ~10 s later in STANDBY: DECIDED_RECENTLY, free, 1 ms. **PASS**. In ACTIVE it is
+     *not* refused - ACTIVE's intervalFactor 0.2 makes the interval 4 s (ADR-050, by design), and
+     a quick double tap is ignored by the app while the first is still deciding.
+   - QUIET: MODE_DOES_NOT_VOLUNTEER, free. **PASS**.
+   - Muted + COMMENT NOW: nothing reached the backend. **PASS** (the button stays enabled while
+     muted; cosmetic).
+   - No transcript in the last 60 s: NOTHING_HEARD, free.
+   - **Transcription stalls upstream.** A minute of talk: 10 utterances, 7 uploads, 2 of them hung
+     to the 15 s client timeout (502) and the phone - one upload at a time, 4 queued, oldest
+     dropped - lost 3 utterances. **Fixed in part `29bce0d`** (10 s per attempt, one retry). Since:
+     1 of ~13 uploads still failed on both attempts (20 s). Still open: serial uploads mean one
+     stall holds up everything behind it.
+   - **First real provider error, verbatim** (risk 27): a 200 whose body was
+     `{"id":"gen-...","error":{"message":"openai/gpt-5.6-luna is temporarily rate-limited upstream.
+     Please retry shortly, or add your own key to accumulate your rate limits: ...","code":429,...}}`.
+     The decision engine read it as MODEL_UNAVAILABLE and stayed silent - the right failure.
 
 ## Where testing got to
 
