@@ -193,7 +193,8 @@ class ModelDecisionEngine(
         }
 
         // Spoken, so never read out a citation or a URL - live search adds them to every answer.
-        val parsed = parse(raw)?.let { d -> d.copy(response = d.response?.let(SpeakableText::clean)) }
+        val parsed = (parse(raw) ?: proseAnswer(raw, request))
+            ?.let { d -> d.copy(response = d.response?.let(SpeakableText::clean)) }
         if (parsed == null) {
             lastOutcome = DecisionOutcome(
                 modelCalled = true, modelId = modelId, reasonCode = "UNREADABLE_DECISION", latencyMillis = clock() - startedAt,
@@ -305,11 +306,12 @@ class ModelDecisionEngine(
         appendLine()
         if (inSystemPrompt) {
             // Search results carry their own dates and the model has no clock; without this it
-            // took "today" from whichever forecast day the results happened to lead with.
-            appendLine("It is ${now()} where the user is.")
+            // took "today" from whichever forecast day the results happened to lead with. Knowing
+            // the hour was not enough on its own: at 11pm Thursday it still called Friday "today".
+            appendLine("It is ${now()} where the user is. Name days relative to that: late in the evening, today's weather is tonight's, and the next day is tomorrow.")
             appendLine(
                 if (question != null) {
-                    "The user message is a web search query written from what was said. Answer what was said, from the search results."
+                    "The user message is a web search query Operator wrote from what was said; the user never saw it, so never correct it. Answer what was said, from the search results."
                 } else {
                     "The user message is exactly what was said to you."
                 },
@@ -329,6 +331,30 @@ class ModelDecisionEngine(
     /** The most recent line of the rolling window, speaker prefix and all. */
     private fun latestLine(transcript: String): String? =
         transcript.lineSequence().map { it.trim() }.lastOrNull { it.isNotEmpty() }
+
+    /**
+     * A plain-prose reply to a question the user asked, taken as the answer.
+     *
+     * With search on, the model sometimes forgets the JSON contract and just answers: live, two
+     * Rams runs in eight replied "Yes - ESPN reported on September 8, 2026, that Aaron Donald would
+     * not travel with the Rams to Melbourne ..." and were thrown away as unreadable, so a correct
+     * answer to a direct question became silence. Invited only - nobody asked for an ambient
+     * remark, and there silence is the right reading of a reply that broke the contract. A reply
+     * containing a brace is a broken JSON object, never read aloud.
+     */
+    private fun proseAnswer(raw: String, request: DecisionRequest): ResponseDecision? {
+        if (request.trigger == DecisionTrigger.AMBIENT) return null
+        val text = raw.trim().takeIf { it.isNotEmpty() && '{' !in it } ?: return null
+        return ResponseDecision(
+            shouldSpeak = true,
+            category = ResponseCategory.DIRECT_REQUEST,
+            confidence = 0f,
+            urgency = 0f,
+            relevance = 0f,
+            response = text,
+            reasonCode = "PROSE_REPLY",
+        )
+    }
 
     /**
      * Turns the model's reply into a decision, or null when it cannot be read.

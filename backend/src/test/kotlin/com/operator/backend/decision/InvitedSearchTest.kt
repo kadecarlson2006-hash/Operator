@@ -310,4 +310,53 @@ class InvitedSearchTest {
             .first().jsonObject["content"]!!.jsonPrimitive.content
         assertTrue(answered.contains("11:04 PM"), "at 11pm, today's weather is tonight's: $answered")
     }
+
+    private fun engineReplying(reply: String): ModelDecisionEngine {
+        val provider = OpenRouterProvider(
+            apiKey = "k",
+            engine = MockEngine {
+                respond(
+                    """{"model":"m","choices":[{"message":{"role":"assistant","content":${Json.encodeToString(kotlinx.serialization.json.JsonPrimitive.serializer(), kotlinx.serialization.json.JsonPrimitive(reply))}}}]}""",
+                    HttpStatusCode.OK,
+                    headersOf("Content-Type", "application/json"),
+                )
+            },
+        )
+        return ModelDecisionEngine(
+            provider = provider,
+            policy = ConversationPolicy(0, 100, 0, 1_000),
+            prompts = PromptLibrary(promptDir()),
+            config = OperatorConfig(decisionModelId = "v/decide", searchQueryRewrite = false),
+            webSearch = WebSearchOptions(maxResults = 3),
+        )
+    }
+
+    private val prose = "Yes - ESPN reported on **September 8, 2026**, that Aaron Donald would not travel to Melbourne. " +
+        "([espn.com](https://www.espn.com/nfl/story/_/id/1/rams-aaron-donald))"
+
+    @Test
+    fun `a prose answer to a direct question is spoken, not dropped`(): Unit = runBlocking {
+        // Live, two Rams replies in eight skipped the JSON and just answered, correctly.
+        val decision = engineReplying(prose)
+            .decide(spoken("Someone: operator did you see the rams aaron donald isn't traveling to AUS with the rest of the team"))
+        assertTrue(decision.shouldSpeak, decision.reasonCode)
+        kotlin.test.assertEquals(
+            "Yes - ESPN reported on September 8, 2026, that Aaron Donald would not travel to Melbourne.",
+            decision.response,
+        )
+    }
+
+    @Test
+    fun `an ambient prose reply is still silence`(): Unit = runBlocking {
+        val decision = engineReplying(prose).decide(spoken("Someone: the rams play tonight", trigger = DecisionTrigger.AMBIENT))
+        assertFalse(decision.shouldSpeak)
+    }
+
+    @Test
+    fun `a broken JSON reply is never read aloud`(): Unit = runBlocking {
+        val decision = engineReplying("""{"shouldSpeak":true,"response":"Sixty""")
+            .decide(spoken("Someone: operator what's the weather in Salina today"))
+        assertFalse(decision.shouldSpeak)
+        kotlin.test.assertEquals("UNREADABLE_DECISION", decision.reasonCode)
+    }
 }

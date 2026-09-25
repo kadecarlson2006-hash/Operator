@@ -19,12 +19,15 @@ object SpeakableText {
     private val BARE_URL = Regex("""\s*\(?\s*https?://[^\s)]+\s*\)?""")
     private val SPACE_BEFORE_PUNCTUATION = Regex("""\s+([.,;:!?])""")
     private val RUNS_OF_SPACE = Regex("""[ \t]{2,}""")
+    /** `**bold**` and `__bold__`: search answers bold dates and places, and TTS reads the marks. */
+    private val EMPHASIS = Regex("""(\*\*|__)(.+?)\1""")
 
     fun clean(text: String): String {
         val cleaned = text
             .replace(CITATION_GROUP, "")
             .replace(INLINE_LINK) { it.groupValues[1] }
             .replace(BARE_URL, " ")
+            .replace(EMPHASIS) { it.groupValues[2] }
             .replace(SPACE_BEFORE_PUNCTUATION, "$1")
             .replace(RUNS_OF_SPACE, " ")
             .trim()

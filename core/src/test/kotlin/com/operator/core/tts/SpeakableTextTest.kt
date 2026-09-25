@@ -48,6 +48,15 @@ class SpeakableTextTest {
     }
 
     @Test
+    fun `bold marks are not read aloud`() {
+        // Live, a searched answer bolded its date and place.
+        assertEquals(
+            "ESPN reported on September 8, 2026, that he would not travel to Melbourne, Australia.",
+            SpeakableText.clean("ESPN reported on **September 8, 2026**, that he would not travel to __Melbourne, Australia__."),
+        )
+    }
+
+    @Test
     fun `an answer that was only a link is kept rather than silenced`() {
         assertEquals("([a.com](https://a.com))", SpeakableText.clean("([a.com](https://a.com))"))
     }
