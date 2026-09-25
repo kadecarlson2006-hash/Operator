@@ -107,6 +107,21 @@ Backend on `7d14345`, decision model `openai/gpt-5.6-luna`, ZDR on, sort latency
      (700 ms hangover in ListenController). Retest: one line, exact, transcribed in 0.58s.
    - Glasses mic (SCO): one utterance, "blue package arrives friday at 7:30" - the first word lost,
      otherwise exact; transcribed in 1.7s. Onset clipping on SCO, likely risk 36.
+7. **Stage 5 voice: PASS.**
+   - Backend TTS first byte 0.24 s warm (0.91 s cold). In the app, **Voice first audio 352 ms**,
+     heard in the glasses (A2DP).
+   - First typed question failed "Backend unreachable": the app's OkHttp default 10 s read
+     timeout was shorter than a searched answer, and that one request also hit a 60 s stall
+     upstream (`/ai/respond` 503 after 60.6 s; retries 3.7-9.4 s). **Fixed `2713c4d`** (70 s).
+   - STOP SPEAKING: audio focus released ~0.1 s after the tap, user heard it stop. The user's
+     first manual try reported no stop - not reproduced; probably the tap missed while scrolling.
+   - EMERGENCY MUTE: released at once, user heard it stop; RELEASE MUTE restored it.
+   - Half-duplex with glasses SCO in and out: mic stopped at the SPEAK tap (11:38:14.8), speech
+     11:38:15.8-16.6 on the glasses, mic resumed 11:38:17.6 on a new session; status back to
+     Listening. User heard "Hello." Selections are not persisted - a reinstall resets INPUT and
+     OUTPUT to system default.
+   Driven over adb (`input tap` + `uiautomator dump`, timing from `dumpsys audio` focus and
+   recording events), which needs no hands and gives exact times.
 
 ## Where testing got to
 
