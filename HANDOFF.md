@@ -11,6 +11,36 @@ unverified in the way the rest of this file means it - see "What landed on 2026-
 The running order is [TESTING.md](TESTING.md). This file is the state of play, the traps, and
 the rules that are not negotiable.
 
+## Live search - where it stands (2026-09-25)
+
+Goal: "Operator, what's the weather in Salina today" and "Operator, did you see the Rams, Aaron
+Donald isn't traveling to AUS with the rest of the team" must both answer from live search.
+
+- **Weather: PASSED live** (searched=true, 6.2s): "In Salina, Kansas, today, Friday, September 25,
+  expect showers, then a chance of thunderstorms, with a high near 79F" - from forecast.weather.gov.
+- **Rams: NOT YET.** Searched every time but found nothing. Ground truth: ESPN, "Rams' Donald won't
+  travel to Australia" - McVay kept him home from the Melbourne opener (quick turnaround); 49ers
+  won 27-7 on Sept 11. Fixes so far, each found from a live run:
+  `02c1a63` reasoning model spent all 300 tokens thinking -> effort low, max_tokens 1500;
+  `319ade0` citations were going to be read aloud -> SpeakableText;
+  `46b0a75` prompt said nothing about search results -> LIVE SEARCH RESULTS section;
+  `242ae65` search query included the instructions -> user message is the question only;
+  `a50ac99` "AUS" searched as Austin -> query rewrite before searching. **Untested live.**
+
+User's live config (no secrets): decision model `openai/gpt-5.6-luna` (reasoning model, served by
+Azure), ZDR on, sort latency, web search on. Postgres is not running; that is fine for this.
+
+To test without the user, from the repo root with OPENROUTER_API_KEY set:
+
+    OPERATOR_DECISION_MODEL_ID=openai/gpt-5.6-luna OPERATOR_ZERO_DATA_RETENTION=true \
+      OPERATOR_PROVIDER_SORT=latency ./gradlew :backend:run -Poperator.skipAndroid=true &
+    curl -s localhost:8080/decide -H 'Content-Type: application/json' -d \
+      '{"trigger":"DIRECT_ADDRESS","mode":"ACTIVE","transcript":["Someone: operator did you see the rams aaron donald isn'"'"'t traveling to AUS with the rest of the team"]}'
+
+Pass = searched true, and the response says Donald stayed home from Melbourne, with a reason.
+If it still misses: try the web plugin's `engine` ("native" vs "exa", see
+@openrouter/ai-sdk-provider types) and max_results 5 before anything bigger.
+
 ## Where testing got to
 
 Stages 2 and 3, M1/M2 from stage 1, and the backend half of stage 6 are done. Stage 4 is
