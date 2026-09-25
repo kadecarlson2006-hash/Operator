@@ -151,6 +151,24 @@ Backend on `7d14345`, decision model `openai/gpt-5.6-luna`, ZDR on, sort latency
      `{"id":"gen-...","error":{"message":"openai/gpt-5.6-luna is temporarily rate-limited upstream.
      Please retry shortly, or add your own key to accumulate your rate limits: ...","code":429,...}}`.
      The decision engine read it as MODEL_UNAVAILABLE and stayed silent - the right failure.
+   - **Active Operator, STANDBY mode, ~4 min** (not 10) of a phone call with the user's wife on
+     another device: **spoke 0 times.** 26 lulls considered: 18 refused free by the phone's rules,
+     5 model calls chose silence, 3 were 429 rate-limited upstream (silent). Stayed quiet through
+     "I wonder what time the Rams play the Cowboys Dec 20th" - by design: not addressed, and ambient
+     never searches. Transcription over the call: ~35 uploads, 2 failed after the retry (20 s),
+     several took 6.5-11.7 s.
+10. **M3 not run.** The instruction was "only if everything above passes", and three things are
+    still open (below).
+
+**Still open after this run**
+- Decision model `openai/gpt-5.6-luna` rate-limited upstream on 3 of 8 calls in the 10-minute
+  run (and once in the button checks). `/decide` sends no fallback `models`; `/ai/respond` does.
+  Picking a fallback is a cost/ZDR choice for the user.
+- Transcription (OpenRouter whisper) stalls: even with the retry, 3 uploads in ~50 failed after
+  20 s and their speech was lost; uploads are serial, so a stall delays everything behind it.
+- A phone vibration opens the voice gate (2 uploads per buzz).
+- Glasses (SCO) mic dropped the first word of the test sentence.
+- `EmbeddingBackfillServiceTest` flakes in the full backend run (passes alone).
 
 ## Where testing got to
 
