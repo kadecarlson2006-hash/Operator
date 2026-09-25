@@ -198,4 +198,34 @@ class InvitedSearchTest {
         kotlin.test.assertEquals("true", reasoning["exclude"]!!.jsonPrimitive.content, "reasoning is never shown, so never downloaded")
         assertTrue(body["max_tokens"]!!.jsonPrimitive.content.toInt() >= 1_000, "room to think and still answer")
     }
+
+    @Test
+    fun `when searching the user message is only the question`(): Unit = runBlocking {
+        // Search queries on the last user turn. It carried "Trigger: DIRECT_ADDRESS ... Reply with
+        // the JSON object only." around the question, and live the Rams story was not found.
+        val sent = mutableListOf<String>()
+        engineWith(sent).decide(spoken("Someone: operator did you see the rams aaron donald isn't traveling to AUS with the rest of the team"))
+        kotlin.test.assertEquals(
+            "did you see the rams aaron donald isn't traveling to AUS with the rest of the team",
+            userMessage(sent.single()),
+        )
+    }
+
+    @Test
+    fun `the framing still reaches the model when searching`(): Unit = runBlocking {
+        val sent = mutableListOf<String>()
+        engineWith(sent).decide(spoken("Someone: operator what's the weather in Salina today"))
+        val system = Json.parseToJsonElement(sent.single()).jsonObject["messages"]!!.jsonArray
+            .first().jsonObject["content"]!!.jsonPrimitive.content
+        assertTrue(system.contains("Trigger: DIRECT_ADDRESS"), "who asked must not be lost")
+        assertTrue(system.contains("Reply with the JSON object only"), "the output contract must not be lost")
+    }
+
+    @Test
+    fun `without search the message is unchanged`(): Unit = runBlocking {
+        val sent = mutableListOf<String>()
+        engineWith(sent).decide(spoken("Someone: operator say hello"))
+        val content = userMessage(sent.single())
+        assertTrue(content.contains("Trigger: DIRECT_ADDRESS") && content.contains("say hello"), content)
+    }
 }

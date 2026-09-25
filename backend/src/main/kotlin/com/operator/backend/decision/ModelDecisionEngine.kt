@@ -145,6 +145,9 @@ class ModelDecisionEngine(
                 unwantedComments = unwantedComments(),
             ),
         ).joinToString("\n\n")
+            // When searching, the framing lives here instead of the user message: search builds its
+            // query from the last user turn, and must see only what was asked (see userContentFor).
+            .let { if (searched) it + "\n\n" + framingFor(request, inSystemPrompt = true) else it }
 
         val modelStartedAt = clock()
         val raw = try {
@@ -152,7 +155,7 @@ class ModelDecisionEngine(
                 AIRequest(
                     modelId = modelId,
                     systemPrompt = systemPrompt,
-                    userContent = userContentFor(request),
+                    userContent = userContentFor(request, searched),
                     maxOutputTokens = MAX_OUTPUT_TOKENS,
                     reasoningEffort = config.decisionReasoningEffort,
                 ),
@@ -195,7 +198,25 @@ class ModelDecisionEngine(
         return reviewed
     }
 
-    private fun userContentFor(request: DecisionRequest): String = buildString {
+    /**
+     * The user message. When searching it is the question and nothing else.
+     *
+     * OpenRouter's web search builds its query from the last user turn. It used to read
+     * "Trigger: DIRECT_ADDRESS / Operator was addressed directly. Answer the question. / What was
+     * said to you: ... / Decide now. Reply with the JSON object only." - and live, a forgiving
+     * query survived that (the Salina forecast came back right) while a specific news story did
+     * not: "did you see the rams aaron donald isn't traveling to AUS" searched and found nothing,
+     * although ESPN had reported exactly that. The framing still reaches the model, from the end
+     * of the system prompt; it just no longer reaches the search engine.
+     */
+    private fun userContentFor(request: DecisionRequest, searched: Boolean): String {
+        val asked = question(request.recentTranscript)
+        if (searched && asked != null) return asked
+        return framingFor(request, question = asked)
+    }
+
+    /** Who asked and what to do about it, and - when not searching - what was said. */
+    private fun framingFor(request: DecisionRequest, question: String? = null, inSystemPrompt: Boolean = false): String = buildString {
         appendLine("Trigger: ${request.trigger.name}")
         when (request.trigger) {
             // "if you have anything worth saying" read as permission to decline, and the model
@@ -209,13 +230,14 @@ class ModelDecisionEngine(
         // Two reasons. The model reads the last user turn as the request, and web search builds
         // its query from it - a user message reading only "Trigger: DIRECT_ADDRESS ... Decide now"
         // gives the search nothing to look for, so search would be enabled and useless.
-        question(request.recentTranscript)?.let { asked ->
+        question?.let { asked ->
             appendLine()
             appendLine(if (request.trigger == DecisionTrigger.AMBIENT) "Last thing said:" else "What was said to you:")
             appendLine(asked)
         }
 
         appendLine()
+        if (inSystemPrompt) appendLine("The user message is exactly what was said to you.")
         appendLine("Decide now. Reply with the JSON object only.")
     }
 
