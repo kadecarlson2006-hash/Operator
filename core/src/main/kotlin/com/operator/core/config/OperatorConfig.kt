@@ -25,6 +25,12 @@ data class OperatorConfig(
     val deepModelId: String? = null,
     val decisionModelId: String? = null,
     /**
+     * Tried in order when the decision model cannot answer, sent as OpenRouter's `models`. Empty by
+     * default: a fallback decides whether Operator speaks, so it has to be chosen and tested, not
+     * assumed - the fast model leaked its reasoning into the reply and took 24-35 s when tried.
+     */
+    val decisionFallbackModelIds: List<String> = emptyList(),
+    /**
      * How hard the decision model may think: "minimal", "low", "medium", "high", or "default"
      * to leave it to the model. Low by default. The first live run of the weather question
      * came back empty: a reasoning model spent its whole output budget thinking and never
@@ -144,6 +150,9 @@ data class OperatorConfig(
                 fastModelId = str(Keys.FAST_MODEL_ID),
                 deepModelId = str(Keys.DEEP_MODEL_ID),
                 decisionModelId = str(Keys.DECISION_MODEL_ID),
+                decisionFallbackModelIds = str(Keys.DECISION_FALLBACK_MODEL_IDS)
+                    ?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }
+                    ?: defaults.decisionFallbackModelIds,
                 decisionReasoningEffort = when (val effort = str(Keys.DECISION_REASONING_EFFORT)?.lowercase()) {
                     null -> defaults.decisionReasoningEffort
                     "default" -> null
@@ -193,6 +202,7 @@ data class OperatorConfig(
         const val FAST_MODEL_ID = "OPERATOR_FAST_MODEL_ID"
         const val DEEP_MODEL_ID = "OPERATOR_DEEP_MODEL_ID"
         const val DECISION_MODEL_ID = "OPERATOR_DECISION_MODEL_ID"
+        const val DECISION_FALLBACK_MODEL_IDS = "OPERATOR_DECISION_FALLBACK_MODEL_IDS"
         const val DECISION_REASONING_EFFORT = "OPERATOR_DECISION_REASONING_EFFORT"
         const val SEARCH_REASONING_EFFORT = "OPERATOR_SEARCH_REASONING_EFFORT"
         const val VISION_MODEL_ID = "OPERATOR_VISION_MODEL_ID"

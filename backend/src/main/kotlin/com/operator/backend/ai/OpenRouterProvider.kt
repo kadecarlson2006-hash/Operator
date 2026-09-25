@@ -130,7 +130,10 @@ class OpenRouterProvider(
 
     private fun describeError(status: HttpStatusCode, body: String): String {
         val envelope = runCatching { json.decodeFromString(ErrorEnvelope.serializer(), body) }.getOrNull()?.error
-        val detail = envelope?.message ?: body.take(300).ifBlank { status.description }
+        // A blank message is not a description: live, a 200 carried an error whose message was
+        // empty and the log read "OpenRouter 200: " with nothing to go on.
+        // Trimmed: OpenRouter pads a slow response with whitespace, which filled the 300 characters.
+        val detail = envelope?.message?.takeIf { it.isNotBlank() } ?: body.trim().take(500).ifBlank { status.description }
         return "OpenRouter ${status.value}: $detail"
     }
 

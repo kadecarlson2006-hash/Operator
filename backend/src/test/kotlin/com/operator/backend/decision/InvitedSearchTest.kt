@@ -423,4 +423,72 @@ class InvitedSearchTest {
         )
         assertTrue(engine.lastOutcome.rewriteMillis in 3_000..5_500, "rewrite time is reported: ${engine.lastOutcome.rewriteMillis}")
     }
+
+    private fun fallbackEngine(sent: MutableList<String>, fallbacks: List<String>, answeredBy: String = "m") = ModelDecisionEngine(
+        provider = OpenRouterProvider(
+            apiKey = "k",
+            engine = MockEngine { request ->
+                sent += (request.body as io.ktor.http.content.TextContent).text
+                respond(
+                    """{"model":"$answeredBy","choices":[{"message":{"role":"assistant","content":${Json.encodeToString(kotlinx.serialization.json.JsonPrimitive.serializer(), kotlinx.serialization.json.JsonPrimitive(speaks))}}}]}""",
+                    HttpStatusCode.OK,
+                    headersOf("Content-Type", "application/json"),
+                )
+            },
+        ),
+        policy = ConversationPolicy(0, 100, 0, 1_000),
+        prompts = PromptLibrary(promptDir()),
+        config = OperatorConfig(decisionModelId = "v/decide", fastModelId = "v/fast", decisionFallbackModelIds = fallbacks),
+        webSearch = WebSearchOptions(maxResults = 3),
+    )
+
+    private fun fallbacksIn(body: String): List<String> =
+        Json.parseToJsonElement(body).jsonObject["models"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
+
+    @Test
+    fun `the configured fallback is sent with the decision`(): Unit = runBlocking {
+        // Live, the decision model was rate-limited upstream on 3 of 8 calls in ten minutes.
+        val sent = mutableListOf<String>()
+        val engine = fallbackEngine(sent, listOf("v/fallback"), answeredBy = "v/fallback")
+        engine.decide(spoken("Someone: operator say hello"))
+        kotlin.test.assertEquals(listOf("v/fallback"), fallbacksIn(sent.single()))
+        kotlin.test.assertEquals("v/fallback", engine.lastOutcome.modelId, "the panel must show which model actually answered")
+    }
+
+    @Test
+    fun `a decision that fails mid-answer is asked of the fallback directly`(): Unit = runBlocking {
+        // Live: a 200 whose only choice ended finish_reason "error". OpenRouter's `models` list
+        // does not cover that, so the engine asks the fallback itself - once, and with search on.
+        val sent = mutableListOf<String>()
+        val failed = """{"model":"v/decide","choices":[{"index":0,"finish_reason":"error","message":{"role":"assistant","content":""}}]}"""
+        val answered = """{"model":"v/fallback","choices":[{"message":{"role":"assistant","content":${Json.encodeToString(kotlinx.serialization.json.JsonPrimitive.serializer(), kotlinx.serialization.json.JsonPrimitive(speaks))}}}]}"""
+        val engine = ModelDecisionEngine(
+            provider = OpenRouterProvider(
+                apiKey = "k",
+                engine = MockEngine { request ->
+                    sent += (request.body as io.ktor.http.content.TextContent).text
+                    respond(if (sent.size == 1) failed else answered, HttpStatusCode.OK, headersOf("Content-Type", "application/json"))
+                },
+            ),
+            policy = ConversationPolicy(0, 100, 0, 1_000),
+            prompts = PromptLibrary(promptDir()),
+            config = OperatorConfig(decisionModelId = "v/decide", decisionFallbackModelIds = listOf("v/fallback"), searchQueryRewrite = false),
+            webSearch = WebSearchOptions(maxResults = 3),
+        )
+        val decision = engine.decide(spoken("Someone: operator what's the weather in Salina today"))
+
+        assertTrue(decision.shouldSpeak, decision.reasonCode)
+        kotlin.test.assertEquals(2, sent.size, "one retry, not a loop")
+        kotlin.test.assertEquals("v/fallback", Json.parseToJsonElement(sent[1]).jsonObject["model"]!!.jsonPrimitive.content)
+        assertTrue(searchedIn(sent[1]), "the retry still searches")
+        kotlin.test.assertEquals("v/fallback", engine.lastOutcome.modelId)
+    }
+
+    @Test
+    fun `no fallback unless one is configured, and never the fast model by default`(): Unit = runBlocking {
+        // The fast model leaked its reasoning into the reply when tried as a decision model.
+        val sent = mutableListOf<String>()
+        fallbackEngine(sent, emptyList()).decide(spoken("Someone: operator say hello"))
+        assertTrue(fallbacksIn(sent.single()).isEmpty())
+    }
 }

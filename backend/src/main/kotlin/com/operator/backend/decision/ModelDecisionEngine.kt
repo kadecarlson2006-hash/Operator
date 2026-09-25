@@ -95,6 +95,12 @@ class ModelDecisionEngine(
             ?: config.fastModelId?.takeIf { it.isNotBlank() }
             ?: throw DecisionModelNotConfiguredException()
 
+        // OpenRouter's fallback, for the rewrite and the decision alike. Live, the decision model
+        // was rate-limited upstream on 3 of 8 calls in ten minutes, and each time a direct
+        // question would have gone unanswered. Configured rather than defaulted to the fast model,
+        // which leaked its reasoning into the reply when tried as a decision model.
+        (provider as? OpenRouterProvider)?.fallbacks = config.decisionFallbackModelIds.filter { it != modelId }
+
         // Recorded before the call, not after: a call that fails still cost a round trip, and a
         // provider that is timing out is exactly when an unbudgeted retry loop would hurt most.
         policy.recordDecision(startedAt)
@@ -177,19 +183,28 @@ class ModelDecisionEngine(
             }
 
         val modelStartedAt = clock()
-        val raw = try {
-            provider.generate(
-                AIRequest(
-                    modelId = modelId,
-                    systemPrompt = systemPrompt,
-                    userContent = userContentFor(request, searched, searchQuery),
-                    maxOutputTokens = MAX_OUTPUT_TOKENS,
-                    // With search results in hand the answer is mostly reading them back, and on
-                    // a reasoning model the thinking is the largest part of the wait that is ours
-                    // to cut. Separately configurable so accuracy can be traded back.
-                    reasoningEffort = if (searched) config.searchReasoningEffort else config.decisionReasoningEffort,
-                ),
-            ).text
+        fun ask(model: String) = AIRequest(
+            modelId = model,
+            systemPrompt = systemPrompt,
+            userContent = userContentFor(request, searched, searchQuery),
+            maxOutputTokens = MAX_OUTPUT_TOKENS,
+            // With search results in hand the answer is mostly reading them back, and on
+            // a reasoning model the thinking is the largest part of the wait that is ours
+            // to cut. Separately configurable so accuracy can be traded back.
+            reasoningEffort = if (searched) config.searchReasoningEffort else config.decisionReasoningEffort,
+        )
+        val answer = try {
+            try {
+                provider.generate(ask(modelId))
+            } catch (e: AIProviderException) {
+                // OpenRouter's own fallback only covers a request that fails outright. Live, Azure
+                // also failed mid-answer - a 200 whose one choice had finish_reason "error" - on 1
+                // of 8 searched questions, and nothing tried again. Ask the fallback directly, once.
+                val fallback = config.decisionFallbackModelIds.firstOrNull { it != modelId } ?: throw e
+                log.warn("Decision model failed after {} ms, asking {}: {}", clock() - modelStartedAt, fallback, e.message)
+                (provider as? OpenRouterProvider)?.fallbacks = emptyList()
+                provider.generate(ask(fallback))
+            }
         } catch (e: AIProviderException) {
             log.warn("Decision model unavailable, staying silent (searched={}, after {} ms): {}", searched, clock() - modelStartedAt, e.message)
             // Report what was attempted even though it failed. Leaving these at zero made a failed
@@ -202,13 +217,16 @@ class ModelDecisionEngine(
             )
             return ResponseDecision.silence("MODEL_UNAVAILABLE")
         }
+        val raw = answer.text
+        // Which model actually answered: the fallback when the decision model was unavailable.
+        val answeredBy = answer.modelId
 
         // Spoken, so never read out a citation or a URL - live search adds them to every answer.
         val parsed = (parse(raw) ?: proseAnswer(raw, request))
             ?.let { d -> d.copy(response = d.response?.let(SpeakableText::clean)) }
         if (parsed == null) {
             lastOutcome = DecisionOutcome(
-                modelCalled = true, modelId = modelId, reasonCode = "UNREADABLE_DECISION", latencyMillis = clock() - startedAt,
+                modelCalled = true, modelId = answeredBy, reasonCode = "UNREADABLE_DECISION", latencyMillis = clock() - startedAt,
                 searched = searched, retrievalMillis = retrievalMillis, modelMillis = clock() - modelStartedAt,
                 rewriteMillis = rewriteMillis,
             )
@@ -220,7 +238,7 @@ class ModelDecisionEngine(
 
         lastOutcome = DecisionOutcome(
             modelCalled = true,
-            modelId = modelId,
+            modelId = answeredBy,
             reasonCode = reviewed.reasonCode,
             suppressedAfterModel = parsed.shouldSpeak && !reviewed.shouldSpeak,
             latencyMillis = clock() - startedAt,

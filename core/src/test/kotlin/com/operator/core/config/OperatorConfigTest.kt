@@ -97,4 +97,13 @@ class OperatorConfigTest {
         assertEquals(500L, timeout("10"), "clamped: zero would never let it run")
         assertEquals(3_500L, timeout("soon"))
     }
+
+    @Test
+    fun `decision fallbacks are a comma list and empty by default`() {
+        fun fallbacks(v: String?) = OperatorConfig.fromMap(mapOf(OperatorConfig.Keys.DECISION_FALLBACK_MODEL_IDS to v)).decisionFallbackModelIds
+        assertEquals(emptyList(), OperatorConfig().decisionFallbackModelIds)
+        assertEquals(listOf("google/gemini-3.5-flash-lite"), fallbacks("google/gemini-3.5-flash-lite"))
+        assertEquals(listOf("a/one", "b/two"), fallbacks(" a/one , ,b/two "))
+        assertEquals(emptyList(), fallbacks(""))
+    }
 }

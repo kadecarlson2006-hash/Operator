@@ -160,10 +160,25 @@ Backend on `7d14345`, decision model `openai/gpt-5.6-luna`, ZDR on, sort latency
 10. **M3 not run.** The instruction was "only if everything above passes", and three things are
     still open (below).
 
+**Decision fallback (added after the run)** - `OPERATOR_DECISION_FALLBACK_MODEL_IDS`, empty by
+default; the user's `.env` has `google/gemini-3.5-flash-lite`.
+- Candidates tried live as the *only* decision model (chit-chat, weather x2, Rams x2):
+  gemini-3.5-flash-lite 1.5-3.1 s, all right, silent on chit-chat; claude-haiku-4.5 5.9-8.5 s, one
+  weather wrong; gpt-5.4-nano 3.5-9.3 s, one weather wrong ("high near 101F ... Sources and.");
+  deepseek-v4-flash (the fast model) 24-35 s and **leaked its reasoning into the response field**
+  - never use it here.
+- Two layers, both needed: OpenRouter `models` covers a request that fails outright (the 429s);
+  it does not cover a 200 whose choice ends `finish_reason: "error"` (Azure failing mid-answer,
+  1 in 8 searched questions), so the engine then asks the fallback directly, once.
+- Live, 16 direct questions: 16 spoke, 0 silent, all right; Luna answered 1, Gemini 15 (13 via
+  `models`, 2 via the engine retry) - Luna was rate-limited most of the time. Drill with the
+  fallback: ambient spoke 0 of 4, grounded invoice spoke. COMMENT NOW answered with only a
+  question ("Which game were you watching?").
+- The panel's model now shows which model actually answered.
+
 **Still open after this run**
-- Decision model `openai/gpt-5.6-luna` rate-limited upstream on 3 of 8 calls in the 10-minute
-  run (and once in the button checks). `/decide` sends no fallback `models`; `/ai/respond` does.
-  Picking a fallback is a cost/ZDR choice for the user.
+- Luna (`openai/gpt-5.6-luna`, Azure) is rate-limited upstream much of the time; with the
+  fallback that costs ~2-3 s instead of an answer, but Gemini is doing most of the deciding.
 - Transcription (OpenRouter whisper) stalls: even with the retry, 3 uploads in ~50 failed after
   20 s and their speech was lost; uploads are serial, so a stall delays everything behind it.
 - A phone vibration opens the voice gate (2 uploads per buzz).

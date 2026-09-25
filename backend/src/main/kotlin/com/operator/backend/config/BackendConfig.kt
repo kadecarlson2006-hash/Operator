@@ -52,6 +52,7 @@ data class BackendConfig(
         "webSearch" to operator.webSearchEnabled.toString(),
         "searchQueryRewrite" to operator.searchQueryRewrite.toString(),
         "searchRewriteTimeoutMs" to operator.searchRewriteTimeoutMillis.toString(),
+        "decisionFallbacks" to operator.decisionFallbackModelIds.joinToString("|").ifEmpty { "none" },
         "decisionReasoning" to (operator.decisionReasoningEffort ?: "model default"),
         "searchReasoning" to (operator.searchReasoningEffort ?: "model default"),
         "zeroDataRetention" to operator.zeroDataRetention.toString(),
