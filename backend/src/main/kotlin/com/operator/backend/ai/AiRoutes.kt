@@ -8,6 +8,7 @@ import com.operator.core.ai.AIProvider
 import com.operator.core.ai.AIRequest
 import com.operator.core.model.OperatorMode
 import com.operator.core.model.WitLevel
+import com.operator.core.tts.SpeakableText
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
@@ -231,7 +232,7 @@ fun Route.aiRoutes(
         )
         call.respond(
             AskResponse(
-                text = result.text,
+                text = SpeakableText.clean(result.text),
                 model = result.modelId,
                 tier = decision.tier.name,
                 routingReason = decision.reason,

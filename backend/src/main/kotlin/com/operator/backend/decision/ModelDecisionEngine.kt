@@ -18,6 +18,7 @@ import com.operator.core.decision.ResponseCategory
 import com.operator.core.decision.ResponseDecision
 import com.operator.core.decision.ResponseDecisionEngine
 import com.operator.core.wake.WakeWord
+import com.operator.core.tts.SpeakableText
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -168,7 +169,8 @@ class ModelDecisionEngine(
             return ResponseDecision.silence("MODEL_UNAVAILABLE")
         }
 
-        val parsed = parse(raw)
+        // Spoken, so never read out a citation or a URL - live search adds them to every answer.
+        val parsed = parse(raw)?.let { d -> d.copy(response = d.response?.let(SpeakableText::clean)) }
         if (parsed == null) {
             lastOutcome = DecisionOutcome(
                 modelCalled = true, modelId = modelId, reasonCode = "UNREADABLE_DECISION", latencyMillis = clock() - startedAt,
