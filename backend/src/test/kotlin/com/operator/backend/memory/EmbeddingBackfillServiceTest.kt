@@ -36,8 +36,12 @@ class EmbeddingBackfillServiceTest {
         assertEquals(1, firstRun.embedded)
         assertTrue(firstRun.hasMore)
         assertEquals(1, embeddings.calls)
-        assertTrue(store.get(DEFAULT_USER_ID, UUID.fromString(firstMissing.id)).hasEmbedding)
-        assertFalse(store.get(DEFAULT_USER_ID, UUID.fromString(secondMissing.id)).hasEmbedding)
+        // Exactly one of the two, not necessarily the first: the order is created_at then id, and
+        // memories created in the same millisecond tie on created_at and fall to random UUIDs.
+        // Asserting "first" failed whenever the full suite ran fast enough to make that tie.
+        val embeddedAfterFirstRun = listOf(firstMissing, secondMissing)
+            .count { store.get(DEFAULT_USER_ID, UUID.fromString(it.id)).hasEmbedding }
+        assertEquals(1, embeddedAfterFirstRun)
 
         val secondRun = service.backfill(limit = 10, batchSize = 2)
         assertEquals(1, secondRun.embedded)

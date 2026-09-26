@@ -187,6 +187,9 @@ default; the user's `.env` has `google/gemini-3.5-flash-lite`.
   4 of 5. A stronger instruction ("a result for a named day belongs to that day") made no
   difference and was not committed. Likely cause: sites label Saturday "Today" after 7 pm CDT and
   Gemini follows the source. Not yet tested in daytime, where the problem should not arise.
+  A third try told it outright ("Tomorrow is Saturday, September 26. It is already Saturday in
+  UTC, so web pages may label tomorrow's forecast Today") and got 2 of 8 right - reverted. Prompt
+  wording does not fix this for Gemini; if it matters, Luna as main (swap in `.env`) does.
 - To go back: swap the two values in `.env`.
 
 **Still open after this run**
@@ -196,7 +199,7 @@ default; the user's `.env` has `google/gemini-3.5-flash-lite`.
   20 s and their speech was lost; uploads are serial, so a stall delays everything behind it.
 - A phone vibration opens the voice gate (2 uploads per buzz).
 - Glasses (SCO) mic dropped the first word of the test sentence.
-- `EmbeddingBackfillServiceTest` flakes in the full backend run (passes alone).
+- ~~`EmbeddingBackfillServiceTest` flake~~ - fixed: the test assumed creation order for two memories created in the same millisecond.
 
 ## Where testing got to
 
