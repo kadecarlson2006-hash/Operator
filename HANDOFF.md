@@ -35,7 +35,7 @@ Donald isn't traveling to AUS with the rest of the team" must both answer from l
 - `EmbeddingBackfillServiceTest` "backfills only eligible ..." fails in the full backend run on
   main and passes alone - a pre-existing ordering or timing flake, not yet looked at.
 
-User's live config (no secrets): decision model `openai/gpt-5.6-luna` (reasoning model, served by
+User's live config (no secrets): decision model `google/gemini-3.5-flash-lite` since 2026-09-25 (fallback `openai/gpt-5.6-luna`, a reasoning model served by
 Azure), ZDR on, sort latency, web search on. Postgres is not running; that is fine for this.
 
 To test without the user, from the repo root with OPENROUTER_API_KEY set:
@@ -176,9 +176,22 @@ default; the user's `.env` has `google/gemini-3.5-flash-lite`.
   question ("Which game were you watching?").
 - The panel's model now shows which model actually answered.
 
+**Gemini made the main decision model (user's call, `.env` only)** -
+`OPERATOR_DECISION_MODEL_ID=google/gemini-3.5-flash-lite`, fallback `openai/gpt-5.6-luna`.
+- Drill on a fresh backend: ambient spoke 0 of 4, grounded invoice spoke, decisions 1.0-1.8 s.
+- Rams 8/8 right, avg 2.7 s (Luna 6.8 s). Weather 8/8 searched and spoke, avg 2.3 s (Luna 4.9 s);
+  no fallbacks needed, no failures.
+- **But at night it names the wrong day.** At 9:20 pm Friday (already Saturday in UTC) it read
+  Saturday's forecast (high 82-85F) as "today" in 5 of 8, then 8 of 8 on a second run; NWS said
+  tonight low ~66F, Saturday high ~84F. Luna, given the same "It is <local time>" line, got it right
+  4 of 5. A stronger instruction ("a result for a named day belongs to that day") made no
+  difference and was not committed. Likely cause: sites label Saturday "Today" after 7 pm CDT and
+  Gemini follows the source. Not yet tested in daytime, where the problem should not arise.
+- To go back: swap the two values in `.env`.
+
 **Still open after this run**
-- Luna (`openai/gpt-5.6-luna`, Azure) is rate-limited upstream much of the time; with the
-  fallback that costs ~2-3 s instead of an answer, but Gemini is doing most of the deciding.
+- Gemini as decision model mislabels "today" at night (above).
+- Luna (`openai/gpt-5.6-luna`, Azure) is rate-limited upstream much of the time.
 - Transcription (OpenRouter whisper) stalls: even with the retry, 3 uploads in ~50 failed after
   20 s and their speech was lost; uploads are serial, so a stall delays everything behind it.
 - A phone vibration opens the voice gate (2 uploads per buzz).
