@@ -4,6 +4,7 @@ import android.util.Log
 import com.operator.app.audio.MicrophoneSource
 import com.operator.app.backend.BackendException
 import com.operator.app.backend.OperatorBackend
+import com.operator.app.backend.TranscribeResponse
 import com.operator.core.audio.PcmClip
 import com.operator.core.audio.RouteSelection
 import com.operator.core.audio.SpeechSegmenter
@@ -12,7 +13,10 @@ import com.operator.core.transcription.RollingTranscript
 import com.operator.core.transcription.Speaker
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -106,7 +110,19 @@ class ListenController(
         _state.update { it.copy(status = ListenStatus.CALIBRATING, listening = true, error = null) }
 
         uploadJob = scope.launch {
-            for (utterance in channel) transcribe(utterance)
+            // Several uploads at once, delivered in the order spoken. One at a time, a single
+            // stalled transcription held up everything behind it: live, a minute of talking lost
+            // three utterances off the end of this queue while one request hung for 15 s. In
+            // order, because the rolling window appends as lines arrive and the decision stage
+            // reads the last line as the latest thing said.
+            val permits = Semaphore(MAX_UPLOADS_IN_FLIGHT)
+            val inOrder = Channel<Pair<Utterance, Deferred<Result<TranscribeResponse>>>>(capacity = MAX_UPLOADS_IN_FLIGHT)
+            launch { for ((utterance, result) in inOrder) deliver(utterance, result.await()) }
+            for (utterance in channel) {
+                permits.acquire()
+                inOrder.send(utterance to async { try { upload(utterance) } finally { permits.release() } })
+            }
+            inOrder.close()
         }
 
         listenJob = scope.launch {
@@ -180,16 +196,29 @@ class ListenController(
         _state.update { it.copy(transcripts = emptyList(), utterances = 0) }
     }
 
-    private suspend fun transcribe(utterance: Utterance) {
+    /** The network half: may run alongside other uploads. Only a backend failure is caught. */
+    private suspend fun upload(utterance: Utterance): Result<TranscribeResponse> {
         _state.update { it.copy(status = ListenStatus.TRANSCRIBING) }
-        try {
-            val pcm = utterance.clip.samples.toLittleEndianBytes()
-            val response = backend.transcribe(
-                pcm = pcm,
-                sampleRateHz = utterance.clip.sampleRateHz,
-                channels = utterance.clip.channels,
-                sessionId = sessionId,
+        return try {
+            Result.success(
+                backend.transcribe(
+                    pcm = utterance.clip.samples.toLittleEndianBytes(),
+                    sampleRateHz = utterance.clip.sampleRateHz,
+                    channels = utterance.clip.channels,
+                    sessionId = sessionId,
+                ),
             )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: BackendException) {
+            Result.failure(e)
+        }
+    }
+
+    /** The delivery half: strictly one at a time, in the order the utterances were spoken. */
+    private fun deliver(utterance: Utterance, result: Result<TranscribeResponse>) {
+        try {
+            val response = result.getOrThrow()
             val line = TranscriptLine(
                 text = response.text,
                 empty = response.empty || response.text.isBlank(),
@@ -251,6 +280,9 @@ class ListenController(
         const val HANGOVER_MILLIS = 700
         const val HANGOVER_FRAMES = HANGOVER_MILLIS / (FRAME_SAMPLES * 1_000 / SAMPLE_RATE_HZ)
         const val MAX_SEGMENT_MILLIS = 20_000L
+
+        /** Uploads allowed at once. Bounded because each holds an utterance's audio in memory. */
+        const val MAX_UPLOADS_IN_FLIGHT = 3
     }
 }
 

@@ -287,6 +287,42 @@ class ListenControllerTest {
     }
 
     @Test
+    fun `a stalled upload does not hold up the rest, and lines still arrive in order`() = runTest {
+        // Live, one transcription hung for 15 s and, uploads going one at a time, three
+        // utterances queued behind it were dropped. Now they upload alongside it; the window must
+        // still read in the order spoken, because the decision stage takes the last line as latest.
+        val mic = FakeMic()
+        val window = RollingTranscript()
+        var calls = 0
+        val started = mutableListOf<Long>()
+        val backend = object : OperatorBackend {
+            override val configured = true
+            override suspend fun ask(prompt: String, tier: String?, sessionId: String?, mode: String?, wit: String?, transcript: List<String>): AskResponse =
+                throw UnsupportedOperationException()
+            override suspend fun decide(trigger: String, transcript: List<String>, mode: String?, wit: String?, recentComments: List<String>, muted: Boolean, sessionId: String?) =
+                throw UnsupportedOperationException()
+            override suspend fun transcribe(pcm: ByteArray, sampleRateHz: Int, channels: Int, sessionId: String?): TranscribeResponse {
+                val n = ++calls
+                started += testScheduler.currentTime
+                if (n == 1) kotlinx.coroutines.delay(15_000)
+                return TranscribeResponse(text = "line $n", provider = "fake", audioSeconds = 0.5, latencyMillis = 30, empty = false)
+            }
+        }
+        val controller = ListenController(mic, backend, this, window)
+
+        controller.start(RouteSelection.Default)
+        repeat(3) { mic.speakOnce() }
+        advanceUntilIdle()
+
+        assertEquals(3, calls)
+        assertTrue("the later uploads must not wait for the stalled one: $started", started.all { it < 15_000 })
+        assertEquals(listOf("line 1", "line 2", "line 3"), window.entries().map { it.text })
+
+        controller.stop()
+        mic.frames.close()
+    }
+
+    @Test
     fun `an empty transcript is not a turn in the window`() = runTest {
         val mic = FakeMic()
         val window = RollingTranscript()
