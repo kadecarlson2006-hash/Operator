@@ -200,6 +200,8 @@ default; the user's `.env` has `google/gemini-3.5-flash-lite`.
   delivered in order), so a stall no longer drops what comes after it - **not yet installed or
   tested on the phone** (it was unplugged): `.\gradlew.bat :app:installDebug`, then a minute of
   talking and compare UTTERANCES with the backend's `/transcribe` count.
+  The stalls are intermittent upstream: at 9:30 pm, 30 uploads of a synthetic 4.6 s sentence
+  (TTS output, no one's voice) all succeeded - median 0.70 s, p90 1.60 s, max 2.83 s.
 - A phone vibration opens the voice gate (2 uploads per buzz).
 - Glasses (SCO) mic dropped the first word of the test sentence.
 - ~~`EmbeddingBackfillServiceTest` flake~~ - fixed: the test assumed creation order for two memories created in the same millisecond.
@@ -468,9 +470,9 @@ cd C:\Users\Vector\Operator
 curl.exe -s http://localhost:8080/usage
 ```
 
-Tests: `./gradlew :core:test :backend:test -Poperator.skipAndroid=true` - 239 pass, 3 skip
-without Docker (`PostgresMemoryStoreTest`, Testcontainers). `:app` compiles only in CI or Android
-Studio.
+Tests: `./gradlew :core:test :backend:test -Poperator.skipAndroid=true` - 391 run, 3 skip
+without Docker (`PostgresMemoryStoreTest`, Testcontainers). This PC now has the Android SDK, so
+`.\gradlew.bat :app:testDebugUnitTest` runs here too (64 pass, 2026-09-25).
 
 Docker is not installed on the test machine, so the memory store is in-memory and does not survive
 a restart. Every retrieval test above still ran correctly; only persistence is missing.
