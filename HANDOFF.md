@@ -139,8 +139,8 @@ Backend on `7d14345`, decision model `openai/gpt-5.6-luna`, ZDR on, sort latency
      *not* refused - ACTIVE's intervalFactor 0.2 makes the interval 4 s (ADR-050, by design), and
      a quick double tap is ignored by the app while the first is still deciding.
    - QUIET: MODE_DOES_NOT_VOLUNTEER, free. **PASS**.
-   - Muted + COMMENT NOW: nothing reached the backend. **PASS** (the button stays enabled while
-     muted; cosmetic).
+   - Muted + COMMENT NOW: nothing reached the backend. **PASS** (the button is disabled while
+     muted; `uiautomator dump` reports the label inside it as enabled, which misled the first read).
    - No transcript in the last 60 s: NOTHING_HEARD, free.
    - **Transcription stalls upstream.** A minute of talk: 10 utterances, 7 uploads, 2 of them hung
      to the 15 s client timeout (502) and the phone - one upload at a time, 4 queued, oldest
@@ -196,7 +196,10 @@ default; the user's `.env` has `google/gemini-3.5-flash-lite`.
 - Gemini as decision model mislabels "today" at night (above).
 - Luna (`openai/gpt-5.6-luna`, Azure) is rate-limited upstream much of the time.
 - Transcription (OpenRouter whisper) stalls: even with the retry, 3 uploads in ~50 failed after
-  20 s and their speech was lost; uploads are serial, so a stall delays everything behind it.
+  20 s and their speech was lost. Uploads are no longer serial (`c4e21da`: up to 3 at once,
+  delivered in order), so a stall no longer drops what comes after it - **not yet installed or
+  tested on the phone** (it was unplugged): `.\gradlew.bat :app:installDebug`, then a minute of
+  talking and compare UTTERANCES with the backend's `/transcribe` count.
 - A phone vibration opens the voice gate (2 uploads per buzz).
 - Glasses (SCO) mic dropped the first word of the test sentence.
 - ~~`EmbeddingBackfillServiceTest` flake~~ - fixed: the test assumed creation order for two memories created in the same millisecond.
